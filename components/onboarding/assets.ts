@@ -1,0 +1,33 @@
+// Exported straight from the Figma file (🗨️ maverick → "First Step")
+export const ASSETS = {
+  logo: "/assets/logo-maverick.svg",
+  google: [
+    "/assets/google-1.svg",
+    "/assets/google-2.svg",
+    "/assets/google-3.svg",
+    "/assets/google-4.svg",
+  ],
+  github: "/assets/github.svg",
+  mail: "/assets/mail.svg",
+  chevron: "/assets/chevron.svg",
+  swooshOrange: "/assets/swoosh-orange.svg",
+  swooshBlue: "/assets/swoosh-blue.svg",
+  swooshGreen: "/assets/swoosh-green.svg",
+  iconCopy: "/assets/icon-copy.svg",
+  iconShare: "/assets/icon-share.svg",
+  iconRetry: "/assets/icon-retry.svg",
+  iconFileChart: "/assets/icon-file-chart.svg",
+  iconPlay: "/assets/icon-play.svg",
+  iconCheckGreen: "/assets/icon-check-green.svg",
+  integrations: [
+    "/assets/integ-1.svg",
+    "/assets/integ-2.svg",
+    "/assets/integ-3.svg",
+    "/assets/integ-4.svg",
+  ],
+  capLeads: "/assets/cap-leads.svg",
+  capEmail: "/assets/cap-email.svg",
+  capCalendar: "/assets/cap-calendar.svg",
+  telegram: "/assets/telegram.svg",
+  whatsapp: "/assets/whatsapp.svg",
+} as const;
