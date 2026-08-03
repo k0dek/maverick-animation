@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { AnimatePresence, motion, MotionConfig } from "framer-motion";
 import { ASSETS } from "./assets";
 import Paywall from "./Paywall";
@@ -16,8 +16,10 @@ import {
   SourcesStep,
 } from "./steps";
 
-/** Total time one showcase scene stays on screen before auto-advancing (step 0 only). */
-const SCENE_MS = 16400;
+/** Time one showcase scene stays on screen (step 0 only). The choreography finishes
+    at ~10.5s (beats end at 7s, the reply builds for ~3.5s), so advance right after
+    a short settling beat instead of holding a finished scene. */
+const SCENE_MS = 11800;
 
 const GRADIENTS = [
   "linear-gradient(180deg, rgba(247,107,21,0.15) 0%, rgba(247,107,21,0) 67%)",
@@ -27,15 +29,46 @@ const GRADIENTS = [
 
 const EASE = [0.32, 0.72, 0, 1] as const;
 
+/** URL slug per funnel step, so a refresh (or back/forward) restores the step. */
+const STEP_SLUGS = ["register", "sources", "email", "capabilities", "phone", "paywall"];
+
+const stepFromUrl = () => {
+  const slug = new URLSearchParams(window.location.search).get("step");
+  const idx = STEP_SLUGS.indexOf(slug ?? "");
+  return idx > 0 ? idx : 0;
+};
+
+// layout-effect on the client so the restored step paints first (no step-0 flash);
+// the page is statically prerendered, so fall back to useEffect off-DOM
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
 export default function MaverickOnboarding() {
   // step 0 = register; 1–4 = the onboarding steps that follow the email
   const [step, setStep] = useState(0);
   const [scene, setScene] = useState(0);
 
+  // restore from the URL before first paint, and follow browser back/forward
+  useIsomorphicLayoutEffect(() => {
+    setStep(stepFromUrl());
+    const onPop = () => setStep(stepFromUrl());
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // reflect the current step in the URL (keeps other params like ?hold intact)
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (step === 0) url.searchParams.delete("step");
+    else url.searchParams.set("step", STEP_SLUGS[step]);
+    if (url.href !== window.location.href) window.history.pushState({}, "", url);
+  }, [step]);
+
   // per-step state, shared between the left card and its right-side illustration
   const [source, setSource] = useState<string | null>(null);
   const [caps, setCaps] = useState([true, true, true]);
-  const [channels, setChannels] = useState({ telegram: true, whatsapp: false });
+  const [channels, setChannels] = useState({ telegram: false, whatsapp: false });
+  // which channel is mid-setup (its connect flow is expanded)
+  const [setup, setSetup] = useState<"telegram" | "whatsapp" | null>(null);
 
   useEffect(() => {
     if (step !== 0) return;
@@ -52,7 +85,8 @@ export default function MaverickOnboarding() {
       if (n === 0) {
         setSource(null);
         setCaps([true, true, true]);
-        setChannels({ telegram: true, whatsapp: false });
+        setChannels({ telegram: false, whatsapp: false });
+        setSetup(null);
       }
       return n;
     });
@@ -90,7 +124,7 @@ export default function MaverickOnboarding() {
 
         {/* left · card */}
         <motion.div
-          className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center rounded-2xl bg-white shadow-[0_1px_2px_rgba(14,18,27,0.04)]"
+          className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-center rounded-[28px] bg-white shadow-[0_1px_2px_rgba(14,18,27,0.04)] md:rounded-2xl"
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: EASE }}
@@ -111,13 +145,19 @@ export default function MaverickOnboarding() {
                 <CapabilitiesStep
                   enabled={caps}
                   onToggle={(i) => setCaps((c) => c.map((v, j) => (j === i ? !v : v)))}
-                  onSkip={next}
+                  onContinue={next}
                 />
               )}
               {step === 4 && (
                 <PhoneStep
                   channels={channels}
-                  onToggle={(k) => setChannels((c) => ({ ...c, [k]: !c[k] }))}
+                  onToggle={(k, v) => {
+                    setChannels((c) => ({ ...c, [k]: v }));
+                    // linking (or unlinking) closes the setup flow
+                    setSetup(null);
+                  }}
+                  setup={setup}
+                  onSetup={setSetup}
                   onSkip={next}
                 />
               )}
@@ -125,8 +165,8 @@ export default function MaverickOnboarding() {
           </AnimatePresence>
         </motion.div>
 
-        {/* right · showcase / illustration */}
-        <div className="relative flex h-full min-w-0 flex-1 flex-col items-center justify-end pb-6">
+        {/* right · showcase / illustration — desktop only; mobile keeps just the card */}
+        <div className="relative hidden h-full min-w-0 flex-1 flex-col items-center justify-end pb-6 md:flex">
           <div className="flex min-h-0 flex-1 items-center justify-center">
             <AnimatePresence mode="wait">
               <motion.div
@@ -311,11 +351,18 @@ function LoginCard({ onContinue }: { onContinue: () => void }) {
       <div className="flex w-80 flex-col gap-5 px-6 text-center text-[14px] font-medium leading-5 tracking-[-0.28px] text-[#bbb]">
         <p>
           By continuing, you agree to the{" "}
-          <span className="cursor-pointer underline decoration-dotted">Terms of Service</span> and{" "}
-          <span className="cursor-pointer underline decoration-dotted">Privacy Policy</span>.
+          <span className="cursor-pointer underline decoration-dotted transition-colors hover:text-black">
+            Terms of Service
+          </span>{" "}
+          and{" "}
+          <span className="cursor-pointer underline decoration-dotted transition-colors hover:text-black">
+            Privacy Policy
+          </span>
+          .
         </p>
         <p>
-          Already have an account? <span className="cursor-pointer text-black">Login</span>
+          Already have an account?{" "}
+          <span className="cursor-pointer text-black transition-opacity hover:opacity-70">Login</span>
         </p>
       </div>
     </div>

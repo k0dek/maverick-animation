@@ -89,13 +89,14 @@ export const AVATARS: Record<"orange" | "blue" | "green", AvatarConfig> = {
   },
 };
 
-export function AgentAvatar({ avatar }: { avatar: AvatarConfig }) {
+export function AgentAvatar({ avatar, sad = false }: { avatar: AvatarConfig; sad?: boolean }) {
   return (
     <motion.div
       className="relative size-7 shrink-0 overflow-hidden rounded-full"
       style={{ backgroundColor: avatar.bg }}
       initial={{ scale: 0, rotate: -12 }}
-      animate={{ scale: 1, rotate: 0 }}
+      // a small slump when there's nothing to do
+      animate={{ scale: 1, rotate: sad ? -6 : 0, y: sad ? 1 : 0 }}
       transition={POP}
     >
       <img
@@ -116,13 +117,22 @@ export function AgentAvatar({ avatar }: { avatar: AvatarConfig }) {
             backgroundColor: "rgba(255,255,255,0.2)",
             boxShadow: "inset 0 0 4.3px 1.2px white",
           }}
-          animate={{ scaleY: [1, 1, 0.15, 1] }}
+          // sad: inner corners tilt up and the eyes droop a little
+          animate={{
+            scaleY: sad ? [0.72, 0.72, 0.15, 0.72] : [1, 1, 0.15, 1],
+            rotate: sad ? (i === 0 ? 22 : -22) : 0,
+            y: sad ? 1.5 : 0,
+          }}
           transition={{
-            duration: 0.4,
-            times: [0, 0.7, 0.85, 1],
-            repeat: Infinity,
-            repeatDelay: 2.8,
-            delay: 1.2,
+            scaleY: {
+              duration: 0.4,
+              times: [0, 0.7, 0.85, 1],
+              repeat: Infinity,
+              repeatDelay: sad ? 4.2 : 2.8,
+              delay: 1.2,
+            },
+            rotate: SOFT,
+            y: SOFT,
           }}
         />
       ))}

@@ -30,4 +30,5 @@ export const ASSETS = {
   capCalendar: "/assets/cap-calendar.svg",
   telegram: "/assets/telegram.svg",
   whatsapp: "/assets/whatsapp.svg",
+  waQr: "/assets/wa-qr.svg",
 } as const;

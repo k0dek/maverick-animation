@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ASSETS } from "./assets";
+import { ConnectPanel, TelegramConnect, WhatsAppConnect } from "./connect";
 import {
   AgentAvatar,
   AVATARS,
@@ -37,7 +38,8 @@ export function StepShell({
           transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
         >
           {title.map((line) => (
-            <span key={line} className="block whitespace-nowrap">
+            // hard line breaks on desktop; narrow screens may wrap
+            <span key={line} className="block md:whitespace-nowrap">
               {line}
             </span>
           ))}
@@ -81,6 +83,24 @@ export function SkipButton({ onClick }: { onClick: () => void }) {
   );
 }
 
+/** Primary action, matching the Continue button on the register screen. */
+export function ContinueButton({ onClick }: { onClick: () => void }) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileTap={{ scale: 0.97 }}
+      className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-[#0271e3] transition-colors hover:bg-[#0264c8]"
+    >
+      <span className="text-[16px] font-medium leading-6 tracking-[-0.32px] text-white">
+        Continue
+      </span>
+      {/* natural aspect (8.3×4.7) — sizing it square stretches the glyph */}
+      <img src={ASSETS.chevron} alt="" className="block w-[9px] max-w-none rotate-90" />
+    </motion.button>
+  );
+}
+
 /* -------------------------- step 1 · how did you hear ------------------------- */
 
 export const SOURCE_OPTIONS = [
@@ -93,7 +113,7 @@ export const SOURCE_OPTIONS = [
   "Ads",
 ];
 
-/** A pill whose selected state blooms in as black instead of switching instantly. */
+/** A pill that fills solid blue when picked, with a soft hover state at rest. */
 function SourceOption({
   label,
   active,
@@ -109,28 +129,19 @@ function SourceOption({
     <motion.button
       type="button"
       onClick={onClick}
-      className="relative flex h-12 w-full cursor-pointer items-center overflow-hidden rounded-full px-5 text-left shadow-[0_1px_2px_rgba(14,18,27,0.04)]"
-      animate={{ scale: active ? 1.02 : 1, opacity: dimmed ? 0.45 : 1 }}
-      whileTap={{ scale: 0.985 }}
-      transition={{ scale: POP, opacity: { duration: 0.35, ease: "easeOut" } }}
+      className="flex h-12 w-full cursor-pointer items-center rounded-full border px-5 text-left shadow-[0_1px_2px_rgba(14,18,27,0.04)]"
+      initial={false}
+      animate={{
+        backgroundColor: active ? "#0271e3" : "#ffffff",
+        borderColor: active ? "#0271e3" : "#f0f0f0",
+        color: active ? "#ffffff" : "#000000",
+        opacity: dimmed ? 0.5 : 1,
+      }}
+      whileHover={active ? undefined : { backgroundColor: "#f7f8f9", borderColor: "#e4e4e4" }}
+      whileTap={{ scale: 0.99 }}
+      transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
     >
-      {/* resting surface */}
-      <span className="absolute inset-0 rounded-full border border-[#f0f0f0] bg-white" />
-      {/* black fill blooms outward from the pill's centre */}
-      <motion.span
-        className="absolute inset-0 rounded-full bg-black"
-        initial={false}
-        animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0.82 }}
-        transition={{ opacity: { duration: 0.32, ease: "easeOut" }, scale: SOFT }}
-      />
-      <motion.span
-        className="relative text-[16px] font-medium leading-6 tracking-[-0.32px]"
-        initial={false}
-        animate={{ color: active ? "#ffffff" : "#000000" }}
-        transition={{ duration: 0.3, ease: "easeOut", delay: active ? 0.06 : 0 }}
-      >
-        {label}
-      </motion.span>
+      <span className="text-[16px] font-medium leading-6 tracking-[-0.32px]">{label}</span>
     </motion.button>
   );
 }
@@ -196,26 +207,22 @@ export function SourcesIllustration({ selected }: { selected: string | null }) {
             transition={{ ...SOFT, delay: 0.3 + i * 0.12 }}
           >
             <motion.div
-              className="relative overflow-hidden whitespace-nowrap rounded-full px-4 py-2 text-[14px] font-medium tracking-[-0.28px] shadow-[0_1px_2px_rgba(14,18,27,0.04)]"
+              className="whitespace-nowrap rounded-full border px-4 py-2 text-[14px] font-medium tracking-[-0.28px] shadow-[0_1px_2px_rgba(14,18,27,0.04)]"
               style={{ rotate: s.r }}
-              animate={{ y: [0, -6, 0] }}
-              transition={{ duration: 3.4 + i * 0.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }}
+              animate={{
+                y: [0, -6, 0],
+                backgroundColor: active ? "#0271e3" : "#ffffff",
+                borderColor: active ? "#0271e3" : "#f0f0f0",
+                color: active ? "#ffffff" : "#000000",
+              }}
+              transition={{
+                y: { duration: 3.4 + i * 0.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 },
+                backgroundColor: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
+                borderColor: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
+                color: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
+              }}
             >
-              <span className="absolute inset-0 rounded-full border border-[#f0f0f0] bg-white" />
-              <motion.span
-                className="absolute inset-0 rounded-full bg-black"
-                initial={false}
-                animate={{ opacity: active ? 1 : 0, scale: active ? 1 : 0.82 }}
-                transition={{ opacity: { duration: 0.32, ease: "easeOut" }, scale: SOFT }}
-              />
-              <motion.span
-                className="relative"
-                initial={false}
-                animate={{ color: active ? "#ffffff" : "#000000" }}
-                transition={{ duration: 0.3, ease: "easeOut", delay: active ? 0.06 : 0 }}
-              >
-                {label}
-              </motion.span>
+              {label}
             </motion.div>
           </motion.div>
         );
@@ -354,11 +361,11 @@ export const CAPABILITIES = [
 export function CapabilitiesStep({
   enabled,
   onToggle,
-  onSkip,
+  onContinue,
 }: {
   enabled: boolean[];
   onToggle: (i: number) => void;
-  onSkip: () => void;
+  onContinue: () => void;
 }) {
   return (
     <StepShell
@@ -382,7 +389,9 @@ export function CapabilitiesStep({
         </StepItem>
       ))}
       <StepItem i={CAPABILITIES.length}>
-        <SkipButton onClick={onSkip} />
+        <div className="pt-2">
+          <ContinueButton onClick={onContinue} />
+        </div>
       </StepItem>
     </StepShell>
   );
@@ -397,11 +406,32 @@ export function CapabilitiesIllustration({ enabled }: { enabled: boolean[] }) {
     return () => clearTimeout(t);
   }, []);
 
+  const idle = enabled.every((e) => !e);
+
   return (
     <div className="flex w-[420px] flex-col gap-6 px-3">
       <div className="flex flex-col gap-4">
-        <AgentAvatar avatar={AVATARS.orange} />
-        <StreamText text="On it. Here's my running task list:" delay={0.5} className={text16} />
+        <AgentAvatar avatar={AVATARS.orange} sad={idle} />
+        {/* the headline itself carries the mood — no second line */}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={idle ? "idle" : "busy"}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+          >
+            <StreamText
+              text={
+                idle
+                  ? "Oh, I don't have tasks for now."
+                  : "On it. Here's my running task list:"
+              }
+              delay={entered ? 0 : 0.5}
+              className={text16}
+            />
+          </motion.div>
+        </AnimatePresence>
       </div>
       <div className="flex flex-col items-start">
         <AnimatePresence>
@@ -430,15 +460,6 @@ export function CapabilitiesIllustration({ enabled }: { enabled: boolean[] }) {
             );
           })}
         </AnimatePresence>
-        {enabled.every((e) => !e) && (
-          <motion.p
-            className="text-[14px] font-medium leading-5 tracking-[-0.28px] text-[#bbb]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            Flip a switch and I&apos;ll get to work.
-          </motion.p>
-        )}
       </div>
     </div>
   );
@@ -446,52 +467,108 @@ export function CapabilitiesIllustration({ enabled }: { enabled: boolean[] }) {
 
 /* ------------------------------ step 4 · phone -------------------------------- */
 
+const CHANNELS = [
+  { key: "telegram" as const, label: "Telegram", icon: ASSETS.telegram },
+  { key: "whatsapp" as const, label: "WhatsApp", icon: ASSETS.whatsapp },
+];
+
 export function PhoneStep({
   channels,
   onToggle,
   onSkip,
+  setup,
+  onSetup,
 }: {
   channels: { telegram: boolean; whatsapp: boolean };
-  onToggle: (key: "telegram" | "whatsapp") => void;
+  onToggle: (key: "telegram" | "whatsapp", value: boolean) => void;
   onSkip: () => void;
+  setup: "telegram" | "whatsapp" | null;
+  onSetup: (key: "telegram" | "whatsapp" | null) => void;
 }) {
+  const anyConnected = channels.telegram || channels.whatsapp;
   return (
     <StepShell
       title={["Use Maverick on your phone!"]}
       subtitle="Use your Al, right where you are most."
     >
-      <StepItem i={0}>
-        <div className="flex w-full items-center gap-3 rounded-[20px] border border-[#f0f0f0] bg-white p-4 shadow-[0_1px_2px_rgba(14,18,27,0.04)]">
-          <span className="flex size-6 items-center justify-center">
-            <img src={ASSETS.telegram} alt="" className="block max-w-none" />
-          </span>
-          <span className={`${text16} flex-1`}>Telegram</span>
-          {channels.telegram && (
-            <>
-              <button
-                type="button"
-                className="cursor-pointer text-[14px] font-medium leading-5 tracking-[-0.28px] text-[#e5484d]"
-                onClick={() => onToggle("telegram")}
-              >
-                Disconnect
-              </button>
-              <span className="h-3 w-px rounded-full bg-[#f0f0f0]" />
-            </>
-          )}
-          <Toggle on={channels.telegram} onClick={() => onToggle("telegram")} />
-        </div>
-      </StepItem>
-      <StepItem i={1}>
-        <div className="flex w-full items-center gap-3 rounded-[20px] border border-[#f0f0f0] bg-white p-4 shadow-[0_1px_2px_rgba(14,18,27,0.04)]">
-          <span className="flex size-6 items-center justify-center">
-            <img src={ASSETS.whatsapp} alt="" className="block max-w-none" />
-          </span>
-          <span className={`${text16} flex-1`}>WhatsApp</span>
-          <Toggle on={channels.whatsapp} onClick={() => onToggle("whatsapp")} />
-        </div>
-      </StepItem>
+      {CHANNELS.map((ch, i) => {
+        const connected = channels[ch.key];
+        const setting = setup === ch.key;
+        return (
+          <StepItem key={ch.key} i={i}>
+            <div className="flex w-full flex-col rounded-[20px] border border-[#f0f0f0] bg-white p-4 shadow-[0_1px_2px_rgba(14,18,27,0.04)]">
+              <div className="flex w-full items-center gap-3">
+                <span className="flex size-6 items-center justify-center">
+                  <img src={ch.icon} alt="" className="block max-w-none" />
+                </span>
+                <span className={`${text16} flex-1`}>{ch.label}</span>
+                {/* the connected row offers a way back out */}
+                <AnimatePresence initial={false}>
+                  {connected && (
+                    <motion.span
+                      className="flex items-center gap-3 overflow-hidden whitespace-nowrap"
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: "auto" }}
+                      exit={{ opacity: 0, width: 0 }}
+                      transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+                    >
+                      <button
+                        type="button"
+                        className="cursor-pointer text-[14px] font-medium leading-5 tracking-[-0.28px] text-[#e5484d]"
+                        onClick={() => onToggle(ch.key, false)}
+                      >
+                        Disconnect
+                      </button>
+                      <span className="h-3 w-px rounded-full bg-[#f0f0f0]" />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+                {/* flipping on opens the setup flow; it only turns green once linked */}
+                <Toggle
+                  on={connected || setting}
+                  onClick={() =>
+                    connected ? onToggle(ch.key, false) : onSetup(setting ? null : ch.key)
+                  }
+                />
+              </div>
+              <ConnectPanel open={setting && !connected}>
+                {ch.key === "telegram" ? (
+                  <TelegramConnect onConnect={() => onToggle("telegram", true)} />
+                ) : (
+                  <WhatsAppConnect onConnect={() => onToggle("whatsapp", true)} />
+                )}
+              </ConnectPanel>
+            </div>
+          </StepItem>
+        );
+      })}
       <StepItem i={2}>
-        <SkipButton onClick={onSkip} />
+        {/* connect at least one tool and the action becomes a commit, not a dismissal */}
+        <div className={anyConnected ? "pt-2" : ""}>
+          <AnimatePresence mode="wait" initial={false}>
+            {anyConnected ? (
+              <motion.div
+                key="continue"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+              >
+                <ContinueButton onClick={onSkip} />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="skip"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+              >
+                <SkipButton onClick={onSkip} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </StepItem>
     </StepShell>
   );

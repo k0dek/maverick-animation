@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { animate, AnimatePresence, motion, useInView } from "framer-motion";
+import { AnimatePresence, motion, useInView } from "framer-motion";
+import NumberFlow from "@number-flow/react";
 import { POP, SOFT } from "./primitives";
 
 const EASE = [0.32, 0.72, 0, 1] as const;
+
+/** Slow, overdamped spring for the use-case reveal — no snap, no overshoot. */
+const REVEAL = { type: "spring", stiffness: 52, damping: 19, mass: 1.1 } as const;
 
 const PW = {
   map: "/assets/pw-map.png",
@@ -43,42 +47,52 @@ type Plan = {
   name: string;
   badge: string;
   price: number;
+  /** pre-promo price, shown struck through (price ÷ (1 − discount), rounded) */
+  oldPrice: number;
   featured?: boolean;
   features: string[];
   blobs: { src: string; w: number; h: number; x: number; y: number; flip?: boolean; eyes: { x: number; y: number } }[];
 };
 
+// ordered cheapest-commitment first, with the best-value plan featured in the middle
 const PLANS: Plan[] = [
+  {
+    name: "1-Month Plan",
+    badge: "Save 50%",
+    price: 48.5,
+    oldPrice: 97,
+    features: ["All 10+ AI agents", "250 monthly credits", "15+ integrations", "24/7 email support"],
+    blobs: [
+      { src: PW.blobOrange, w: 64.5, h: 58, x: 64.3, y: 136, eyes: { x: 32.3, y: 12 } },
+    ],
+  },
   {
     name: "12-Month Plan",
     badge: "Save 70%",
     price: 15.9,
+    oldPrice: 53,
+    featured: true,
     features: ["All 10+ AI agents", "Unlimited credits", "20+ integrations", "Priority 24/7 support"],
+    // the pair rides with the recommended plan
     blobs: [
-      { src: PW.blobGreen, w: 64.5, h: 65.5, x: 46, y: 110, flip: true, eyes: { x: 16, y: 13.5 } },
+      { src: PW.blobBlue, w: 64.5, h: 76, x: 149.8, y: 118, flip: true, eyes: { x: 20.5, y: 11 } },
+      { src: PW.blobYellow, w: 52, h: 59.5, x: 193.7, y: 134, eyes: { x: 13.1, y: 12.7 } },
     ],
   },
   {
     name: "3-Month Plan",
     badge: "Save 60%",
     price: 23.9,
-    featured: true,
+    oldPrice: 60,
     features: ["All 10+ AI agents", "500 monthly credits", "20+ integrations", "24/7 live chat support"],
     blobs: [
-      { src: PW.blobBlue, w: 64.5, h: 76, x: 149.8, y: 109, flip: true, eyes: { x: 20.5, y: 11 } },
-      { src: PW.blobYellow, w: 52, h: 59.5, x: 193.7, y: 112.5, eyes: { x: 13.1, y: 12.7 } },
-    ],
-  },
-  {
-    name: "1-Month Plan",
-    badge: "Save 50%",
-    price: 48.5,
-    features: ["All 10+ AI agents", "250 monthly credits", "15+ integrations", "24/7 email support"],
-    blobs: [
-      { src: PW.blobOrange, w: 64.5, h: 58, x: 64.3, y: 114, eyes: { x: 32.3, y: 12 } },
+      { src: PW.blobGreen, w: 64.5, h: 65.5, x: 46, y: 128, flip: true, eyes: { x: 16, y: 13.5 } },
     ],
   },
 ];
+
+/** Shown once under the stacked cards on mobile, where per-card lists would repeat. */
+const SHARED_FEATURES = PLANS.find((p) => p.featured)!.features;
 
 const FEATURES = [
   { icon: PW.feats[0], tint: "rgba(0,144,255,0.08)", title: "10+ AI Agents for every workflow", sub: "Deploy Scout, Onyx, Prism, Atlas, Nova and more — from marketing to ops to customer success." },
@@ -139,14 +153,23 @@ function Blob({
   delay: number;
   className?: string;
 }) {
+  // on mobile: nudge each blob out toward its nearer card edge, lift it clear of the
+  // button and shrink it a touch. Desktop keeps the design's exact placement.
+  const outward = blob.x < 100 ? "-translate-x-6" : "translate-x-6";
+
   return (
-    <motion.div
-      className={`absolute ${className}`}
+    // plain wrapper carries the responsive offset — a Tailwind translate on the motion
+    // element itself would be overwritten by framer's inline transform
+    <div
+      className={`absolute origin-bottom -translate-y-8 scale-[0.85] md:translate-x-0 md:translate-y-0 md:scale-100 ${outward} ${className}`}
       style={{ left: blob.x, top: blob.y, width: blob.w, height: blob.h }}
-      initial={{ opacity: 0, y: 24, scale: 0.4 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ ...POP, delay }}
     >
+      <motion.div
+        className="size-full"
+        initial={{ opacity: 0, y: 24, scale: 0.4 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ ...POP, delay }}
+      >
       <motion.div
         className="relative size-full"
         animate={{ y: [0, -3, 0] }}
@@ -175,32 +198,41 @@ function Blob({
           />
         ))}
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }
 
-/** Price that counts up when it scrolls into view. */
+/** Price that rolls up to its value when it scrolls into view (NumberFlow). */
 function Price({ value }: { value: number }) {
-  const ref = useRef<HTMLParagraphElement>(null);
+  const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true });
-  const [text, setText] = useState("0.00");
+  const [shown, setShown] = useState(0);
+
   useEffect(() => {
     if (!inView) return;
-    const controls = animate(0, value, {
-      duration: 1.3,
-      ease: EASE,
-      onUpdate: (v) => setText(v.toFixed(2)),
-    });
-    return () => controls.stop();
+    // one frame later so NumberFlow sees a 0 → value change and animates it
+    const t = setTimeout(() => setShown(value), 60);
+    return () => clearTimeout(t);
   }, [inView, value]);
+
   return (
-    <p ref={ref} className="whitespace-nowrap text-[40px] font-medium leading-[48px] text-black">
-      ${text}
-    </p>
+    <div ref={ref} className="whitespace-nowrap text-[40px] font-medium leading-[48px] text-black">
+      <NumberFlow
+        value={shown}
+        // pin en-US, otherwise a non-US locale renders "US$15.90"
+        locales="en-US"
+        format={{ style: "currency", currency: "USD", minimumFractionDigits: 2 }}
+        transformTiming={{ duration: 900, easing: "cubic-bezier(0.32,0.72,0,1)" }}
+        spinTiming={{ duration: 1100, easing: "cubic-bezier(0.32,0.72,0,1)" }}
+        opacityTiming={{ duration: 350, easing: "ease-out" }}
+        willChange
+      />
+    </div>
   );
 }
 
-function SectionHeading({ line1 }: { line1: string }) {
+function SectionHeading({ line1, lead = "with" }: { line1: string; lead?: string }) {
   return (
     <motion.div
       className="flex w-[540px] max-w-full flex-col"
@@ -209,12 +241,18 @@ function SectionHeading({ line1 }: { line1: string }) {
       viewport={{ once: true, amount: 0.6 }}
       transition={{ duration: 0.5, ease: EASE }}
     >
-      <p className="text-[40px] font-medium leading-[48px] tracking-[-1.2px] text-black">{line1}</p>
-      <span className="flex items-center gap-2 text-[40px] font-medium leading-[48px] tracking-[-1.2px] text-[#e0e0e0]">
-        with
+      <p className="text-[30px] font-medium leading-9 tracking-[-0.9px] text-black md:text-[40px] md:leading-[48px] md:tracking-[-1.2px]">
+        {line1}
+      </p>
+      <span className="flex items-center gap-2 text-[30px] font-medium leading-9 tracking-[-0.9px] text-[#e0e0e0] md:text-[40px] md:leading-[48px] md:tracking-[-1.2px]">
+        {lead}
         <span className="flex items-start gap-[1.5px]">
           Maverick
-          <img src={PW.plusGray} alt="" className="mt-1 block h-[37px] w-[25px] max-w-none" />
+          <img
+            src={PW.plusGray}
+            alt=""
+            className="mt-1 block h-[28px] w-[19px] max-w-none md:h-[37px] md:w-[25px]"
+          />
         </span>
       </span>
     </motion.div>
@@ -224,7 +262,9 @@ function SectionHeading({ line1 }: { line1: string }) {
 function FaqItem({ q, a, open, onClick }: { q: string; a: string; open: boolean; onClick: () => void }) {
   return (
     <motion.div
-      className="w-full rounded-[20px] border border-[#f0f0f0] bg-white p-5 shadow-[0_1px_2px_rgba(14,18,27,0.04),0_10px_16px_rgba(14,18,27,0.04)]"
+      // the whole card toggles, not just the header row
+      onClick={onClick}
+      className="w-full cursor-pointer rounded-[20px] border border-[#f0f0f0] bg-white p-5 shadow-[0_1px_2px_rgba(14,18,27,0.04),0_10px_16px_rgba(14,18,27,0.04)]"
       initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.4 }}
@@ -232,8 +272,10 @@ function FaqItem({ q, a, open, onClick }: { q: string; a: string; open: boolean;
     >
       <button
         type="button"
-        onClick={onClick}
-        className="flex w-full cursor-pointer items-center gap-2.5 text-left"
+        aria-expanded={open}
+        // the card handles the click; this stays for keyboard/AT users
+        tabIndex={-1}
+        className="pointer-events-none flex w-full items-center gap-2.5 text-left"
       >
         <span className="flex-1 text-[18px] font-medium leading-7 tracking-[-0.36px] text-black">{q}</span>
         {/* 20px box with the chevron at its Figma insets (15 × 7.64) */}
@@ -272,6 +314,8 @@ function FaqItem({ q, a, open, onClick }: { q: string; a: string; open: boolean;
 export default function Paywall({ onDone }: { onDone: () => void }) {
   const [openFaq, setOpenFaq] = useState(0);
   const [showAllCases, setShowAllCases] = useState(false);
+  // clip while collapsed / mid-animation, then release so shadows can spill
+  const [clipCases, setClipCases] = useState(true);
 
   return (
     <div
@@ -305,8 +349,8 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
         </div>
       </div>
 
-      {/* hero + pricing */}
-      <div className="relative flex flex-col items-center gap-12 px-6">
+      {/* hero + pricing — same 24px page gutter as the footer */}
+      <div className="relative flex flex-col items-center gap-8 px-6 md:gap-12">
         <motion.div
           className="flex flex-col items-center gap-3"
           initial={{ opacity: 0, y: 16 }}
@@ -314,43 +358,71 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
           transition={{ duration: 0.5, ease: EASE, delay: 0.1 }}
         >
           <span className="flex items-start gap-[1.6px]">
-            <span className="text-[42px] font-medium tracking-[-1.68px] text-black">Maverick</span>
-            <img src={PW.logoPlus} alt="" className="block h-10 w-[27px] max-w-none" />
+            <span className="text-[32px] font-medium tracking-[-1.28px] text-black md:text-[42px] md:tracking-[-1.68px]">
+              Maverick
+            </span>
+            <img
+              src={PW.logoPlus}
+              alt=""
+              className="block h-[30px] w-[20px] max-w-none md:h-10 md:w-[27px]"
+            />
           </span>
-          <p className="text-[16px] font-medium tracking-[-0.32px] text-black/[0.16]">
+          <p className="px-6 text-center text-[16px] font-medium tracking-[-0.32px] text-black/[0.16] md:px-0">
             Choose your Maverick plan and start automating today
           </p>
         </motion.div>
 
-        <div className="flex w-[1080px] max-w-full gap-6 rounded-[28px] p-4">
+        {/* grid rather than flex: equal columns regardless of each card's content width,
+            and items-end keeps every card's bottom on the same line while the featured
+            one grows upward to fit its label strip */}
+        <div className="grid w-full max-w-[1080px] grid-cols-1 gap-6 rounded-[28px] p-0 md:grid-cols-3 md:items-end md:p-4">
           {PLANS.map((plan, i) => (
             <motion.div
               key={plan.name}
-              className={`relative flex-1 rounded-[28px] bg-white p-8 ${
+              // featured plan sits in a blue frame: the label is the frame's top strip and
+              // the card is inset inside it, so both get their own rounded corners
+              className={`relative min-w-0 rounded-[28px] ${
                 plan.featured
-                  ? "border border-black/[0.08] shadow-[0_1px_2px_rgba(14,18,27,0.04),0_10px_16px_rgba(14,18,27,0.04)]"
-                  : ""
+                  ? "bg-[#0271e3] p-[3px] pt-0 md:shadow-[0_1px_2px_rgba(14,18,27,0.04),0_10px_16px_rgba(14,18,27,0.04)]"
+                  // same border + layered shadow as the use-case cards
+                  : "border border-[#f0f0f0] bg-white p-5 shadow-[0_1px_2px_rgba(14,18,27,0.04),0_10px_16px_rgba(14,18,27,0.04)] md:p-8"
               }`}
               initial={{ opacity: 0, y: 28 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ ...SOFT, delay: 0.2 + i * 0.08 }}
             >
+              {/* label strip — the blue frame showing above the inset card */}
+              {plan.featured && (
+                <div className="flex h-9 items-center justify-center text-[14px] font-medium leading-5 tracking-[-0.28px] text-white">
+                  Most popular
+                </div>
+              )}
+              <div
+                className={
+                  plan.featured ? "relative rounded-[25px] bg-white p-5 md:p-8" : "contents"
+                }
+              >
               {/* mascots peeking from behind the button */}
               {plan.blobs.map((blob, b) => (
                 <Blob key={b} blob={blob} delay={1 + i * 0.15 + b * 0.12} />
               ))}
 
-              <div className="relative flex flex-col gap-8">
+              {/* tighter stack on mobile so the cards take less vertical room */}
+              <div className="relative flex flex-col gap-5 md:gap-8">
                 <div className="flex flex-col gap-4">
                   <div className="flex items-center justify-between">
                     <p className="text-[14px] font-medium leading-5 tracking-[-0.28px] text-black">
                       {plan.name}
                     </p>
-                    <span className="flex h-6 items-center rounded-full border border-black/[0.04] px-2 text-[12px] font-semibold leading-4 tracking-[-0.24px] text-black">
+                    <span className="flex h-6 items-center rounded-full bg-[#0271e3] px-2 text-[12px] font-semibold leading-4 tracking-[-0.24px] text-white">
                       {plan.badge}
                     </span>
                   </div>
-                  <div className="flex items-start gap-1">
+                  <div className="flex items-start gap-2">
+                    {/* pre-promo price, struck through */}
+                    <span className="text-[26px] font-medium leading-[48px] tracking-[-0.5px] text-black/25 line-through">
+                      ${plan.oldPrice}
+                    </span>
                     <Price value={plan.price} />
                     <span className="py-[7px] text-[12px] font-medium leading-4 text-[#8d8d8d]"> /mo</span>
                   </div>
@@ -380,14 +452,19 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
                   Get Maverick
                 </motion.button>
 
-                <div className="flex items-center gap-1">
-                  <img src={PW.shield} alt="" className="block max-w-none" />
+                {/* mobile keeps only the top of the card — the guarantee and the feature
+                    list move below the three cards, shown once for the selected plan */}
+                <div className="hidden items-center gap-1 md:flex">
+                  {/* same 20px icon box as the check rows so the text lines up */}
+                  <span className="flex size-5 shrink-0 items-center justify-center">
+                    <img src={PW.shield} alt="" className="block max-w-none" />
+                  </span>
                   <p className="flex-1 text-[14px] font-medium leading-5 tracking-[-0.14px] text-black">
                     14-day money-back guarantee
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-3">
+                <div className="hidden flex-col gap-3 md:flex">
                   {plan.features.map((f) => (
                     <div key={f} className="flex items-center gap-1">
                       <span className="flex size-5 items-center justify-center">
@@ -400,9 +477,42 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
                   ))}
                 </div>
               </div>
+              </div>
             </motion.div>
           ))}
         </div>
+
+        {/* mobile only — the shared bottom half, shown once below all three cards */}
+        <motion.div
+          className="w-full max-w-[1080px] md:hidden"
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ ...SOFT, delay: 0.5 }}
+        >
+          <div className="flex flex-col gap-6 px-2">
+            <div className="flex items-center gap-1">
+              {/* same 20px icon box as the check rows so the text lines up */}
+              <span className="flex size-5 shrink-0 items-center justify-center">
+                <img src={PW.shield} alt="" className="block max-w-none" />
+              </span>
+              <p className="flex-1 text-[14px] font-medium leading-5 tracking-[-0.14px] text-black">
+                14-day money-back guarantee
+              </p>
+            </div>
+            <div className="flex flex-col gap-3">
+              {SHARED_FEATURES.map((f) => (
+                <div key={f} className="flex items-center gap-1">
+                  <span className="flex size-5 items-center justify-center">
+                    <img src={PW.check} alt="" className="block max-w-none" />
+                  </span>
+                  <p className="flex-1 text-[14px] font-medium leading-5 tracking-[-0.14px] text-black">
+                    {f}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </motion.div>
       </div>
 
       {/* logo marquee — spacing lives on each item (not as a flex gap), so the two
@@ -429,18 +539,28 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
         </motion.div>
       </div>
 
-      {/* everything you're getting — the row overflows its 840px frame, so it scrolls */}
-      <div className="relative flex flex-col items-center gap-10 px-6 py-16">
-        <SectionHeading line1="Everything you're getting" />
-        {/* horizontal-only scroll: the y axis is locked (no stray vertical scrollbar) and
-            the blob that pokes above the cards lives inside the top padding so it isn't cut.
-            Side padding sits on the inner track so neither end is clipped at rest. */}
-        <div className="-mt-10 w-full max-w-[840px] overflow-x-auto overflow-y-hidden pt-14 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex w-max gap-6 px-8 pb-2">
+      {/* everything you're getting — a full-bleed carousel */}
+      <div className="relative flex flex-col items-center gap-7 py-16">
+        {/* per the design the heading is its own narrower 540px centred column — not the
+            840px card column below it (w-full on mobile keeps the 24px page gutter and
+            stops this wrapper shrink-to-fitting past a narrow viewport) */}
+        <div className="w-full px-6 md:w-[540px] md:max-w-[800px] md:px-0">
+          <SectionHeading line1="Everything you're getting" />
+        </div>
+        {/* Full-bleed like the design — the row spills past the 840px frame instead of
+            being clipped at it. Padding lives on the scroller itself (100% = its own full
+            width, so no scrollbar drift) and puts the first card on the design's column:
+            centre − 420 + 32. Vertical padding gives the blob and shadows room (cancelled
+            by the negative margins); the y axis is locked so no scrollbar shows. */}
+        <div className="w-full">
+          <div className="-mb-8 -mt-10 w-full overflow-x-auto overflow-y-hidden px-[max(1.5rem,calc((100%-840px)/2+2rem))] pb-8 pt-14 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex w-max gap-6">
             {FEATURES.map((feat, i) => (
               <motion.div
                 key={feat.title}
-                className="relative flex w-80 shrink-0 flex-col gap-6"
+                // narrower than the viewport on mobile so the next card peeks in,
+                // signalling the row scrolls
+                className="relative flex w-[calc(100vw-6rem)] shrink-0 flex-col gap-6 md:w-80"
                 initial={{ opacity: 0, y: 32 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.3 }}
@@ -466,23 +586,33 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
                 </div>
               </motion.div>
             ))}
+            </div>
           </div>
         </div>
       </div>
 
       {/* real use cases */}
-      <div className="relative px-3">
-        <div className="flex flex-col items-center gap-8 rounded-3xl bg-[#fcfcfc] px-6 pb-[54px] pt-20">
-          <SectionHeading line1="Real usecases where you can" />
+      <div className="relative px-2 md:px-3">
+        <div className="flex flex-col items-center gap-[22px] rounded-3xl bg-[#fcfcfc] px-2 pb-[54px] pt-20 md:px-6">
+          {/* heading has its own 540px centred column, narrower than the card grid below */}
+          <div className="w-full px-4 md:w-[540px] md:max-w-[800px] md:px-0">
+            <SectionHeading line1="Real usecases where you can" lead="use" />
+          </div>
           <div className="relative w-full max-w-[840px]">
-            {/* collapsed to 480px; expanding animates to the grid's natural height */}
+            {/* collapsed to 480px; expanding animates to the grid's natural height.
+                pb-24 reserves the strip the button lives in, so the button never changes
+                positioning mode — it just rides the animating height. The clip is dropped
+                once fully open so card shadows aren't sliced off. */}
             <motion.div
-              className="relative flex gap-3 overflow-hidden px-8"
+              // px-4 on mobile so the cards' shadows aren't sliced by the clip
+              className={`relative flex flex-col gap-3 px-4 pb-24 md:flex-row md:px-8 ${clipCases ? "overflow-hidden" : ""}`}
               animate={{ height: showAllCases ? "auto" : 480 }}
-              transition={{ duration: 0.55, ease: EASE }}
+              transition={REVEAL}
+              onAnimationStart={() => setClipCases(true)}
+              onAnimationComplete={() => setClipCases(!showAllCases)}
             >
               {USE_CASES.map((col, c) => (
-                <div key={c} className={`flex min-w-0 flex-1 flex-col gap-2 ${c !== 1 ? "pt-8" : ""}`}>
+                <div key={c} className={`flex min-w-0 flex-1 flex-col gap-2 md:gap-2 ${c !== 1 ? "md:pt-8" : ""}`}>
                   {col.map((uc, i) => (
                     <motion.div
                       key={uc.title}
@@ -505,43 +635,44 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
               <motion.div
                 className="pointer-events-none absolute inset-x-0 bottom-0 h-[139px] bg-gradient-to-t from-[#fcfcfc] from-30% to-transparent"
                 animate={{ opacity: showAllCases ? 0 : 1 }}
-                transition={{ duration: 0.35, ease: EASE }}
+                transition={{ duration: 0.6, ease: EASE }}
               />
-            </motion.div>
 
-            <motion.button
-              type="button"
-              onClick={() => setShowAllCases((v) => !v)}
-              className={`left-1/2 flex h-9 -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full bg-[#0271e3] px-4 text-[16px] font-medium tracking-[-0.32px] text-white transition-colors hover:bg-[#0264c8] ${
-                showAllCases ? "relative mt-6" : "absolute bottom-12"
-              }`}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ ...SOFT, delay: 0.3 }}
-            >
-              {showAllCases ? "View less" : "View more"}
-              {/* scaled down from the 15px FAQ glyph — this pill is only 36px tall */}
-              <motion.span
-                className="flex size-4 items-center justify-center"
-                animate={{ rotate: showAllCases ? 0 : 180 }}
-                transition={{ duration: 0.35, ease: EASE }}
-              >
-                <img
-                  src={PW.chevronTop}
-                  alt=""
-                  className="block h-auto w-[10px] max-w-none brightness-0 invert"
-                />
-              </motion.span>
-            </motion.button>
+              {/* always anchored to the container's bottom — no absolute↔relative swap */}
+              <div className="absolute inset-x-0 bottom-10 flex justify-center">
+                <motion.button
+                  type="button"
+                  onClick={() => setShowAllCases((v) => !v)}
+                  className="flex h-9 cursor-pointer items-center gap-1.5 rounded-full bg-[#0271e3] px-4 text-[16px] font-medium tracking-[-0.32px] text-white transition-colors hover:bg-[#0264c8]"
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ ...SOFT, delay: 0.3 }}
+                >
+                  {showAllCases ? "View less" : "View more"}
+                  {/* scaled down from the 15px FAQ glyph — this pill is only 36px tall */}
+                  <motion.span
+                    className="flex size-4 items-center justify-center"
+                    animate={{ rotate: showAllCases ? 0 : 180 }}
+                    transition={REVEAL}
+                  >
+                    <img
+                      src={PW.chevronTop}
+                      alt=""
+                      className="block h-auto w-[10px] max-w-none brightness-0 invert"
+                    />
+                  </motion.span>
+                </motion.button>
+              </div>
+            </motion.div>
           </div>
         </div>
       </div>
 
       {/* faq */}
-      <div className="relative flex flex-col items-center gap-10 px-6 py-14">
+      <div className="relative flex flex-col items-center gap-7 px-6 py-14">
         <motion.p
-          className="w-[540px] max-w-full text-[40px] font-medium leading-[48px] tracking-[-1.2px] text-black"
+          className="w-[540px] max-w-full text-[30px] font-medium leading-9 tracking-[-0.9px] text-black md:text-[40px] md:leading-[48px] md:tracking-[-1.2px]"
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.6 }}
@@ -564,10 +695,10 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
 
       {/* footer */}
       <div className="relative flex flex-col items-center overflow-hidden px-6 pt-20">
-        <div className="relative flex w-[1140px] max-w-full flex-col gap-[120px] pb-60">
-          <div className="flex w-full">
+        <div className="relative flex w-[1140px] max-w-full flex-col gap-16 pb-32 md:gap-[120px] md:pb-60">
+          <div className="flex w-full flex-col gap-10 md:flex-row">
             <motion.div
-              className="flex-1 text-[40px] font-medium leading-10 tracking-[-1.6px] text-black"
+              className="flex-1 text-[32px] font-medium leading-9 tracking-[-1.28px] text-black md:text-[40px] md:leading-10 md:tracking-[-1.6px]"
               initial={{ opacity: 0, y: 16 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.5 }}
@@ -595,21 +726,34 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
               ))}
             </div>
           </div>
-          <div className="flex w-full items-end justify-between text-[16px] font-medium leading-6 tracking-[-0.32px]">
+          <div className="flex w-full flex-col gap-4 text-[16px] font-medium leading-6 tracking-[-0.32px] md:flex-row md:items-end md:justify-between">
             <div className="flex flex-col gap-1">
               <p className="text-[#bbb]">Crafted w/ love by us</p>
               <p className="text-black">2026 Maverick. All rights reserved.</p>
             </div>
             <div className="flex items-center gap-1">
               <p className="text-black">Operational</p>
-              <img src={PW.statusDot} alt="" className="block size-5 max-w-none" />
+              {/* live status — a round dot with a pulsing halo. The exported asset is a
+                  rounded *square* tile, so pulsing it read as a blinking rectangle. */}
+              <span className="relative ml-1 flex size-2.5 items-center justify-center">
+                <motion.span
+                  className="absolute inset-0 rounded-full bg-[#00BD5F]"
+                  animate={{ opacity: [0.45, 0, 0.45], scale: [1, 2.4, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
+                />
+                <motion.span
+                  className="relative size-2 rounded-full bg-[#00BD5F]"
+                  animate={{ opacity: [1, 0.5, 1] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                />
+              </span>
             </div>
           </div>
-          {/* giant wordmark rising from the bottom */}
+          {/* giant wordmark rising from the bottom — sits higher on mobile so more of it shows */}
           <motion.img
             src={PW.footerWordmark}
             alt="Maverick"
-            className="absolute -bottom-[25px] left-0 w-full max-w-none"
+            className="absolute bottom-4 left-0 w-full max-w-none md:-bottom-[25px]"
             initial={{ opacity: 0, y: 32 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
