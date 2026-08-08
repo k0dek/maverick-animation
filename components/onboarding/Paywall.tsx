@@ -91,9 +91,6 @@ const PLANS: Plan[] = [
   },
 ];
 
-/** Shown once under the stacked cards on mobile, where per-card lists would repeat. */
-const SHARED_FEATURES = PLANS.find((p) => p.featured)!.features;
-
 const FEATURES = [
   { icon: PW.feats[0], tint: "rgba(0,144,255,0.08)", title: "10+ AI Agents for every workflow", sub: "Deploy Scout, Onyx, Prism, Atlas, Nova and more — from marketing to ops to customer success." },
   { icon: PW.feats[1], tint: "rgba(229,72,77,0.08)", title: "One-click automations for any task", sub: "Launch pre-built automations instantly. Just select, customize, and let Maverick handle the rest." },
@@ -452,9 +449,7 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
                   Get Maverick
                 </motion.button>
 
-                {/* mobile keeps only the top of the card — the guarantee and the feature
-                    list move below the three cards, shown once for the selected plan */}
-                <div className="hidden items-center gap-1 md:flex">
+                <div className="flex items-center gap-1">
                   {/* same 20px icon box as the check rows so the text lines up */}
                   <span className="flex size-5 shrink-0 items-center justify-center">
                     <img src={PW.shield} alt="" className="block max-w-none" />
@@ -464,7 +459,7 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
                   </p>
                 </div>
 
-                <div className="hidden flex-col gap-3 md:flex">
+                <div className="flex flex-col gap-3">
                   {plan.features.map((f) => (
                     <div key={f} className="flex items-center gap-1">
                       <span className="flex size-5 items-center justify-center">
@@ -482,37 +477,6 @@ export default function Paywall({ onDone }: { onDone: () => void }) {
           ))}
         </div>
 
-        {/* mobile only — the shared bottom half, shown once below all three cards */}
-        <motion.div
-          className="w-full max-w-[1080px] md:hidden"
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...SOFT, delay: 0.5 }}
-        >
-          <div className="flex flex-col gap-6 px-2">
-            <div className="flex items-center gap-1">
-              {/* same 20px icon box as the check rows so the text lines up */}
-              <span className="flex size-5 shrink-0 items-center justify-center">
-                <img src={PW.shield} alt="" className="block max-w-none" />
-              </span>
-              <p className="flex-1 text-[14px] font-medium leading-5 tracking-[-0.14px] text-black">
-                14-day money-back guarantee
-              </p>
-            </div>
-            <div className="flex flex-col gap-3">
-              {SHARED_FEATURES.map((f) => (
-                <div key={f} className="flex items-center gap-1">
-                  <span className="flex size-5 items-center justify-center">
-                    <img src={PW.check} alt="" className="block max-w-none" />
-                  </span>
-                  <p className="flex-1 text-[14px] font-medium leading-5 tracking-[-0.14px] text-black">
-                    {f}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
       </div>
 
       {/* logo marquee — spacing lives on each item (not as a flex gap), so the two

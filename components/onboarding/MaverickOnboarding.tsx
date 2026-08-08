@@ -8,18 +8,19 @@ import { ChatScene, SCENES } from "./scenes";
 import {
   CapabilitiesIllustration,
   CapabilitiesStep,
+  CompanyIllustration,
+  type CompanyInfo,
+  CompanyStep,
   EmailIllustration,
   EmailStep,
   PhoneIllustration,
   PhoneStep,
-  SourcesIllustration,
-  SourcesStep,
 } from "./steps";
 
 /** Time one showcase scene stays on screen (step 0 only). The choreography finishes
-    at ~10.5s (beats end at 7s, the reply builds for ~3.5s), so advance right after
-    a short settling beat instead of holding a finished scene. */
-const SCENE_MS = 11800;
+    at ~10.5s (beats end at 7s, the reply builds for ~3.5s); the rest is a deliberate
+    hold so the finished scene can be read before it hands off to the next one. */
+const SCENE_MS = 14500;
 
 const GRADIENTS = [
   "linear-gradient(180deg, rgba(247,107,21,0.15) 0%, rgba(247,107,21,0) 67%)",
@@ -30,7 +31,7 @@ const GRADIENTS = [
 const EASE = [0.32, 0.72, 0, 1] as const;
 
 /** URL slug per funnel step, so a refresh (or back/forward) restores the step. */
-const STEP_SLUGS = ["register", "sources", "email", "capabilities", "phone", "paywall"];
+const STEP_SLUGS = ["register", "company", "email", "capabilities", "phone", "paywall"];
 
 const stepFromUrl = () => {
   const slug = new URLSearchParams(window.location.search).get("step");
@@ -64,7 +65,7 @@ export default function MaverickOnboarding() {
   }, [step]);
 
   // per-step state, shared between the left card and its right-side illustration
-  const [source, setSource] = useState<string | null>(null);
+  const [company, setCompany] = useState<CompanyInfo>({ name: "", role: "", about: "" });
   const [caps, setCaps] = useState([true, true, true]);
   const [channels, setChannels] = useState({ telegram: false, whatsapp: false });
   // which channel is mid-setup (its connect flow is expanded)
@@ -83,7 +84,7 @@ export default function MaverickOnboarding() {
       const n = (s + 1) % 6;
       // looping back to the start clears the previous run's answers
       if (n === 0) {
-        setSource(null);
+        setCompany({ name: "", role: "", about: "" });
         setCaps([true, true, true]);
         setChannels({ telegram: false, whatsapp: false });
         setSetup(null);
@@ -91,17 +92,11 @@ export default function MaverickOnboarding() {
       return n;
     });
 
-  const pickSource = (label: string) => {
-    setSource(label);
-    // just long enough to register the selection, then move on
-    setTimeout(next, 200);
-  };
-
   // steps 1–4 keep the orange gradient from the design; step 0 follows the scene
   const gradient = step === 0 ? scene : 0;
 
   const rightPanels: Record<number, React.ReactNode> = {
-    1: <SourcesIllustration selected={source} />,
+    1: <CompanyIllustration values={company} />,
     2: <EmailIllustration />,
     3: <CapabilitiesIllustration enabled={caps} />,
     4: <PhoneIllustration channels={channels} />,
@@ -139,7 +134,14 @@ export default function MaverickOnboarding() {
               transition={{ duration: 0.7, ease: EASE }}
             >
               {step === 0 && <LoginCard onContinue={next} />}
-              {step === 1 && <SourcesStep selected={source} onSelect={pickSource} onSkip={next} />}
+              {step === 1 && (
+                <CompanyStep
+                  values={company}
+                  onChange={(k, v) => setCompany((c) => ({ ...c, [k]: v }))}
+                  onContinue={next}
+                  onSkip={next}
+                />
+              )}
               {step === 2 && <EmailStep onNext={next} onSkip={next} />}
               {step === 3 && (
                 <CapabilitiesStep

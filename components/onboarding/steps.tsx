@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ASSETS } from "./assets";
 import { ConnectPanel, TelegramConnect, WhatsAppConnect } from "./connect";
@@ -101,132 +101,320 @@ export function ContinueButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-/* -------------------------- step 1 · how did you hear ------------------------- */
+/* --------------------------- step 1 · your company ---------------------------- */
 
-export const SOURCE_OPTIONS = [
-  "Facebook / Instagram",
-  "Google",
-  "YouTube",
-  "LinkedIn",
-  "Al Search (ChatGPT, Perplexity, etc)",
-  "Friend / Family",
-  "Ads",
-];
+export type CompanyInfo = { name: string; role: string; about: string };
 
-/** A pill that fills solid blue when picked, with a soft hover state at rest. */
-function SourceOption({
-  label,
-  active,
-  dimmed,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  dimmed: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      className="flex h-12 w-full cursor-pointer items-center rounded-full border px-5 text-left shadow-[0_1px_2px_rgba(14,18,27,0.04)]"
-      initial={false}
-      animate={{
-        backgroundColor: active ? "#0271e3" : "#ffffff",
-        borderColor: active ? "#0271e3" : "#f0f0f0",
-        color: active ? "#ffffff" : "#000000",
-        opacity: dimmed ? 0.5 : 1,
-      }}
-      whileHover={active ? undefined : { backgroundColor: "#f7f8f9", borderColor: "#e4e4e4" }}
-      whileTap={{ scale: 0.99 }}
-      transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-    >
-      <span className="text-[16px] font-medium leading-6 tracking-[-0.32px]">{label}</span>
-    </motion.button>
-  );
-}
+// the focused field gets a clearly visible brand border + halo, not a near-invisible grey
+const FIELD =
+  "w-full border border-[#f0f0f0] bg-white text-[16px] font-medium leading-6 tracking-[-0.32px] text-black shadow-[0_1px_2px_rgba(14,18,27,0.04)] outline-none transition-[border-color,box-shadow] duration-200 placeholder:text-[#bbb] focus:border-[#0271e3] focus:shadow-[0_0_0_3px_rgba(2,113,227,0.12)]";
 
-export function SourcesStep({
-  selected,
-  onSelect,
+export function CompanyStep({
+  values,
+  onChange,
+  onContinue,
   onSkip,
 }: {
-  selected: string | null;
-  onSelect: (label: string) => void;
+  values: CompanyInfo;
+  onChange: (key: keyof CompanyInfo, value: string) => void;
+  onContinue: () => void;
   onSkip: () => void;
 }) {
+  const nameRef = useRef<HTMLInputElement>(null);
+  const roleRef = useRef<HTMLInputElement>(null);
+  const aboutRef = useRef<HTMLTextAreaElement>(null);
+
+  // focus the first field as soon as the step mounts (the previous card has already
+  // finished exiting by then); preventScroll so focusing can't nudge the layout
+  useEffect(() => {
+    const id = requestAnimationFrame(() => nameRef.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  // Enter walks down the fields, and continues from the last one.
+  // take the ref itself, not `.current` — at render time the next field isn't
+  // mounted yet, so the handler would capture a null
+  const advance =
+    (next: React.RefObject<HTMLElement | null>) => (e: React.KeyboardEvent) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      next.current?.focus();
+    };
+
   return (
     <StepShell
-      title={["How did you hear about us?"]}
-      subtitle="This helps us understand where our community comes from."
+      title={["Tell us about your company"]}
+      subtitle="Maverick tailors every agent to your business context."
     >
-      {SOURCE_OPTIONS.map((label, i) => (
-        <StepItem key={label} i={i}>
-          <SourceOption
-            label={label}
-            active={selected === label}
-            dimmed={selected !== null && selected !== label}
-            onClick={() => onSelect(label)}
-          />
-        </StepItem>
-      ))}
-      <StepItem i={SOURCE_OPTIONS.length}>
-        <SkipButton onClick={onSkip} />
+      <StepItem i={0}>
+        <input
+          ref={nameRef}
+          value={values.name}
+          onChange={(e) => onChange("name", e.target.value)}
+          onKeyDown={advance(roleRef)}
+          placeholder="Your company"
+          className={`${FIELD} h-12 rounded-full px-5`}
+        />
+      </StepItem>
+      <StepItem i={1}>
+        <input
+          ref={roleRef}
+          value={values.role}
+          onChange={(e) => onChange("role", e.target.value)}
+          onKeyDown={advance(aboutRef)}
+          placeholder="Your role"
+          className={`${FIELD} h-12 rounded-full px-5`}
+        />
+      </StepItem>
+      <StepItem i={2}>
+        <textarea
+          ref={aboutRef}
+          value={values.about}
+          onChange={(e) => onChange("about", e.target.value)}
+          onKeyDown={(e) => {
+            // last field: Enter continues, Shift+Enter still breaks a line
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              onContinue();
+            }
+          }}
+          placeholder="What does your company do?"
+          rows={4}
+          className={`${FIELD} resize-none overflow-y-auto rounded-[20px] px-5 py-3.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden`}
+        />
+      </StepItem>
+      <StepItem i={3}>
+        <div className="pt-2">
+          <ContinueButton onClick={onContinue} />
+        </div>
+      </StepItem>
+      <StepItem i={4}>
+        {/* once they've started typing, skipping is no longer the suggestion */}
+        <AnimatePresence initial={false}>
+          {!(values.name || values.role || values.about) && (
+            <motion.div
+              className="overflow-hidden"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ height: LAYOUT_SPRING, opacity: { duration: 0.25 } }}
+            >
+              <SkipButton onClick={onSkip} />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </StepItem>
     </StepShell>
   );
 }
 
-/** Right side — the option pills scattered around the agent, floating gently. */
-const PILL_SPOTS = [
-  { x: 24, y: 118, r: -4 },
-  { x: 262, y: 96, r: 3 },
-  { x: 74, y: 192, r: 2 },
-  { x: 252, y: 176, r: -3 },
-  { x: 38, y: 268, r: -2 },
-  { x: 246, y: 330, r: 4 },
-  { x: 120, y: 352, r: -5 },
-];
-
-export function SourcesIllustration({ selected }: { selected: string | null }) {
+/** Right side — the agent assembles a company profile card as you type. */
+function ProfileSkeleton({ w, h = 8 }: { w: number | string; h?: number }) {
   return (
-    <div className="relative h-[420px] w-[420px]">
-      <div className="absolute left-1/2 top-4 -translate-x-1/2">
-        <AgentAvatar avatar={AVATARS.orange} />
+    // pulses via background-color, not opacity — an opacity loop here would fight the
+    // parent's fade-out during a swap and read as a flicker
+    <motion.span
+      className="block rounded-full"
+      style={{ width: w, height: h }}
+      animate={{ backgroundColor: ["rgba(0,0,0,0.05)", "rgba(0,0,0,0.10)", "rgba(0,0,0,0.05)"] }}
+      transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+    />
+  );
+}
+
+/** Trails the live value by a beat, so the mirror settles after you pause typing. */
+function useDebounced<T>(value: T, ms = 500): T {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return v;
+}
+
+/** Placeholder and value sit stacked in one grid cell and simply crossfade.
+    Nothing mounts or unmounts, so there's no exit animation to fight and nothing
+    gets lifted out of flow. The box animates its real `height` (measured) rather
+    than using framer's `layout` — a layout animation tweens via transform scaling,
+    which visibly stretches the skeleton bars and text inside it. */
+function Mirror({
+  show,
+  placeholder,
+  className,
+  children,
+}: {
+  show: boolean;
+  placeholder: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [h, setH] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const measure = () => setH(el.offsetHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const fade = { duration: 0.28, ease: [0.32, 0.72, 0, 1] as const };
+  return (
+    <motion.div
+      className="overflow-hidden"
+      animate={h === null ? undefined : { height: h }}
+      transition={LAYOUT_SPRING}
+    >
+      <div ref={inner} className={`grid ${className ?? ""}`}>
+        <motion.div
+          className="min-w-0 [grid-area:1/1]"
+          animate={{ opacity: show ? 1 : 0 }}
+          transition={fade}
+        >
+          {children}
+        </motion.div>
+        {/* the placeholder is shorter than the text it stands in for, so centre it in
+            the cell — top-aligned bars read as misaligned against the monogram */}
+        <motion.div
+          className="pointer-events-none flex min-w-0 flex-col justify-center [grid-area:1/1]"
+          animate={{ opacity: show ? 0 : 1 }}
+          transition={fade}
+        >
+          {placeholder}
+        </motion.div>
       </div>
-      {SOURCE_OPTIONS.map((label, i) => {
-        const s = PILL_SPOTS[i];
-        const active = selected === label;
-        return (
+    </motion.div>
+  );
+}
+
+export function CompanyIllustration({ values }: { values: CompanyInfo }) {
+  // the card mirrors debounced values: it waits for a pause in typing, then
+  // morphs to the new content instead of flickering on every keystroke
+  const name = useDebounced(values.name.trim());
+  const role = useDebounced(values.role.trim());
+  const about = useDebounced(values.about.trim());
+  const named = name.length > 0;
+
+  return (
+    <div className="flex w-[420px] flex-col gap-6 px-3">
+      <div className="flex flex-col gap-4">
+        <AgentAvatar avatar={AVATARS.orange} />
+        {/* the headline follows along once it knows who you are */}
+        <Mirror
+          show={named}
+          placeholder={
+            <StreamText
+              text="Tell me about your company — I'll learn how it works."
+              delay={0.5}
+              className={text16}
+            />
+          }
+        >
+          <StreamText
+            key={name}
+            text={named ? `Getting Maverick ready for ${name}.` : " "}
+            className={text16}
+          />
+        </Mirror>
+      </div>
+
+      {/* company profile card, settling in as you pause. No `layout` here — each
+          Mirror animates its own height, so the card follows along naturally without
+          the transform-scaling that a layout animation would impose on its children */}
+      <motion.div
+        className="flex w-[320px] flex-col gap-4 rounded-[20px] border border-[#f0f0f0] bg-white p-5 shadow-[0_1px_2px_rgba(14,18,27,0.04),0_10px_16px_rgba(14,18,27,0.04)]"
+        initial={{ opacity: 0, scale: 0.9, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ ...SOFT, delay: 0.9 }}
+      >
+        <div className="flex items-center gap-3">
+          {/* monogram fills with the brand colour once there's a name */}
           <motion.div
-            key={label}
-            className="absolute"
-            style={{ left: s.x, top: s.y }}
-            initial={{ opacity: 0, scale: 0.5, y: 20 }}
-            animate={{ opacity: 1, scale: active ? 1.08 : 1, y: 0 }}
-            transition={{ ...SOFT, delay: 0.3 + i * 0.12 }}
+            className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-full text-[16px] font-medium"
+            animate={{
+              backgroundColor: named ? "#0271e3" : "rgba(0,0,0,0.04)",
+              color: named ? "#ffffff" : "#bbbbbb",
+            }}
+            transition={{ duration: 0.35 }}
           >
-            <motion.div
-              className="whitespace-nowrap rounded-full border px-4 py-2 text-[14px] font-medium tracking-[-0.28px] shadow-[0_1px_2px_rgba(14,18,27,0.04)]"
-              style={{ rotate: s.r }}
-              animate={{
-                y: [0, -6, 0],
-                backgroundColor: active ? "#0271e3" : "#ffffff",
-                borderColor: active ? "#0271e3" : "#f0f0f0",
-                color: active ? "#ffffff" : "#000000",
-              }}
-              transition={{
-                y: { duration: 3.4 + i * 0.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 },
-                backgroundColor: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
-                borderColor: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
-                color: { duration: 0.28, ease: [0.32, 0.72, 0, 1] },
-              }}
-            >
-              {label}
-            </motion.div>
+            <Mirror show={named} placeholder={<span>?</span>}>
+              <motion.span
+                key={named ? name[0].toUpperCase() : "blank"}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.25, ease: [0.32, 0.72, 0, 1] }}
+                className="block"
+              >
+                {named ? name[0].toUpperCase() : " "}
+              </motion.span>
+            </Mirror>
           </motion.div>
-        );
-      })}
+          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <Mirror show={named} placeholder={<ProfileSkeleton w={128} />}>
+              <StreamText
+                key={name}
+                text={named ? name : " "}
+                wordDelay={0.06}
+                className={`${text14} truncate`}
+              />
+            </Mirror>
+            <Mirror show={!!role} placeholder={<ProfileSkeleton w={80} h={6} />}>
+              <StreamText
+                key={role}
+                text={role || " "}
+                wordDelay={0.06}
+                className="truncate text-[12px] font-medium leading-4 tracking-[-0.24px] text-[#8d8d8d]"
+              />
+            </Mirror>
+          </div>
+        </div>
+        <span className="h-px w-full bg-[#f0f0f0]" />
+        <Mirror
+          show={!!about}
+          placeholder={
+            // fixed widths — percentages collapsed whenever the box was measured mid-swap
+            <div className="flex flex-col gap-2">
+              <ProfileSkeleton w={280} />
+              <ProfileSkeleton w={232} />
+              <ProfileSkeleton w={174} />
+            </div>
+          }
+        >
+          {/* capped so a very long description can't grow the card past the panel;
+              the tail fades out rather than being hard-cut */}
+          <div
+            className="max-h-[140px] overflow-hidden"
+            style={{
+              maskImage: "linear-gradient(180deg,#000 108px,transparent 140px)",
+              WebkitMaskImage: "linear-gradient(180deg,#000 108px,transparent 140px)",
+            }}
+          >
+            {/* long copy fades in as one block — per-word animation means one
+                animation per word, which drops the frame rate badly past ~25 words */}
+            {about.split(/\s+/).length > 24 ? (
+              <motion.p
+                key={about}
+                initial={{ opacity: 0, filter: "blur(3px)" }}
+                animate={{ opacity: 1, filter: "blur(0px)" }}
+                transition={{ duration: 0.4, ease: [0.32, 0.72, 0, 1] }}
+                className="whitespace-pre-wrap text-[14px] font-medium leading-5 tracking-[-0.28px] text-[#8d8d8d]"
+              >
+                {about}
+              </motion.p>
+            ) : (
+              <StreamText
+                key={about}
+                text={about || " "}
+                wordDelay={0.05}
+                className="whitespace-pre-wrap text-[14px] font-medium leading-5 tracking-[-0.28px] text-[#8d8d8d]"
+              />
+            )}
+          </div>
+        </Mirror>
+      </motion.div>
     </div>
   );
 }
@@ -279,73 +467,191 @@ export function EmailStep({ onNext, onSkip }: { onNext: () => void; onSkip: () =
   );
 }
 
-/** Right side — inbox triage: mail cards cascade in, agent turns them into outcomes. */
-function MailCard({ w, delay, lines }: { w: number; delay: number; lines: number[] }) {
+/** Right side — the agent sits in the middle of the day's workload: emails, a
+    document draft and meeting cards. Each item gets checked off as it's handled,
+    then the agent reports everything is done. */
+const text12 = "text-[12px] font-medium leading-4 tracking-[-0.24px]";
+
+function WorkSkeleton({ w }: { w: number }) {
+  return <span className="h-1.5 rounded-full bg-black/[0.06]" style={{ width: w }} />;
+}
+
+function EmailCard({ subject }: { subject: string }) {
+  return (
+    <div className="flex w-[160px] items-center gap-2.5 p-3">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-black/[0.04]">
+        <img src={ASSETS.mail} alt="" className="size-3.5 opacity-60" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className={`${text12} truncate text-black`}>{subject}</span>
+        <WorkSkeleton w={72} />
+      </span>
+    </div>
+  );
+}
+
+function DocCard() {
+  return (
+    <div className="flex w-[116px] flex-col gap-2 p-3">
+      <span className={`${text12} text-black`}>Q3 launch brief</span>
+      <div className="flex flex-col gap-1.5">
+        <WorkSkeleton w={88} />
+        <WorkSkeleton w={64} />
+        <WorkSkeleton w={76} />
+      </div>
+    </div>
+  );
+}
+
+function MeetingCard() {
+  return (
+    <div className="flex w-[160px] flex-col gap-2 p-3">
+      <span className="flex size-6 items-center justify-center rounded-full bg-[#0271e3]">
+        <span className="text-[11px] font-medium leading-none text-white">31</span>
+      </span>
+      <span className="flex items-center gap-1.5">
+        <span className="font-mono text-[10px] font-medium uppercase leading-3 tracking-[-0.2px] text-black/[0.32]">
+          FRI
+        </span>
+        <span className="size-1 rounded-full bg-[#0271e3]" />
+        <span className={`${text12} truncate text-black`}>Team kickoff</span>
+      </span>
+    </div>
+  );
+}
+
+function PdfCard() {
+  return (
+    <div className="flex w-[160px] flex-col gap-2 p-3">
+      <span className="flex size-6 items-center justify-center rounded-full bg-[rgba(255,128,0,0.2)]">
+        <img src={ASSETS.iconFileChart} alt="" className="block h-3 w-auto max-w-none" />
+      </span>
+      <span className="flex items-center gap-1 whitespace-nowrap">
+        <span className={`${text12} truncate text-black`}>Product Kickoff</span>
+        <span className={`${text12} text-black/[0.32]`}>·</span>
+        <span className="font-mono text-[10px] font-medium uppercase leading-3 tracking-[-0.2px] text-black/[0.32]">
+          PDF
+        </span>
+      </span>
+    </div>
+  );
+}
+
+const WORKLOAD: { x: number; y: number; r: number; node: React.ReactNode }[] = [
+  { x: 22, y: 28, r: -5, node: <EmailCard subject="Re: Q3 budget" /> },
+  { x: 240, y: 22, r: 4, node: <MeetingCard /> },
+  { x: 10, y: 140, r: -3, node: <DocCard /> },
+  { x: 258, y: 148, r: 3, node: <EmailCard subject="Intro — partnership" /> },
+  { x: 38, y: 294, r: 3, node: <PdfCard /> },
+  { x: 234, y: 298, r: -4, node: <EmailCard subject="Invoice #204" /> },
+];
+
+function WorkCard({
+  x,
+  y,
+  r,
+  appearAt,
+  checkAt,
+  bob,
+  children,
+}: {
+  x: number;
+  y: number;
+  r: number;
+  appearAt: number;
+  checkAt: number;
+  bob: number;
+  children: React.ReactNode;
+}) {
   return (
     <motion.div
-      className="flex items-start gap-3 rounded-2xl border border-black/[0.02] bg-white p-3 shadow-[0_1px_2px_rgba(14,18,27,0.04)]"
-      style={{ width: w }}
-      initial={{ opacity: 0, y: 24, scale: 0.85 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ ...SOFT, delay }}
+      className="absolute"
+      style={{ left: x, top: y }}
+      initial={{ opacity: 0, scale: 0.5, y: 16 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{ ...SOFT, delay: appearAt }}
     >
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-black/[0.04]">
-        <img src={ASSETS.mail} alt="" className="size-4 opacity-60" />
-      </span>
-      <span className="flex flex-1 flex-col gap-1.5 pt-1">
-        {lines.map((lw, i) => (
-          <motion.span
-            key={i}
-            className="h-2 origin-left rounded-full bg-black/[0.06]"
-            style={{ width: `${lw}%` }}
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ delay: delay + 0.25 + i * 0.15, duration: 0.7, ease: [0.32, 0.72, 0, 1] }}
+      <motion.div
+        animate={{ y: [0, -5, 0] }}
+        transition={{ duration: bob, repeat: Infinity, ease: "easeInOut", delay: appearAt }}
+      >
+        {/* a little pulse the moment this item gets handled */}
+        <motion.div
+          className="relative rounded-2xl border border-[#f0f0f0] bg-white shadow-[0_1px_2px_rgba(14,18,27,0.04)]"
+          style={{ rotate: r }}
+          animate={{ scale: [1, 1.06, 1] }}
+          transition={{ delay: checkAt, duration: 0.45, ease: "easeInOut" }}
+        >
+          {children}
+          {/* done — checkmark pops onto the corner */}
+          <motion.img
+            src={ASSETS.iconCheckGreen}
+            alt=""
+            className="absolute -right-1.5 -top-1.5 block size-5 max-w-none"
+            initial={{ scale: 0, rotate: -90 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ ...POP, delay: checkAt }}
           />
-        ))}
-      </span>
+        </motion.div>
+      </motion.div>
     </motion.div>
   );
 }
 
 export function EmailIllustration() {
+  // checks land one by one; once the last has settled, the agent reports back
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setDone(true), 7000);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
-    <div className="flex w-[420px] flex-col gap-6 px-3">
-      <div className="flex flex-col gap-4">
-        <AgentAvatar avatar={AVATARS.orange} />
-        <StreamText
-          text="I'll keep your inbox and calendar ahead of you."
-          delay={0.5}
-          className={text16}
-        />
-      </div>
-      <div className="flex flex-col gap-3">
-        <MailCard w={280} delay={1.2} lines={[80, 55]} />
-        <div className="ml-8">
-          <MailCard w={280} delay={1.55} lines={[65, 40]} />
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
-        {["Reply drafted in your voice", "Meeting scheduled"].map((label, i) => (
-          <motion.div
-            key={label}
-            className="flex h-8 items-center gap-1.5 rounded-xl border border-[#f0f0f0] bg-white pl-2 pr-3"
-            initial={{ opacity: 0, scale: 0.7, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ ...POP, delay: 2.3 + i * 0.3 }}
+    <div className="flex w-[420px] flex-col items-center gap-3">
+      <div className="relative h-[380px] w-full">
+        {/* the agent holds the middle of the workload */}
+        <motion.div
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+          initial={{ scale: 0, rotate: -12 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={POP}
+        >
+          <AgentAvatar avatar={AVATARS.orange} />
+        </motion.div>
+        {WORKLOAD.map((w, i) => (
+          <WorkCard
+            key={i}
+            x={w.x}
+            y={w.y}
+            r={w.r}
+            appearAt={0.3 + i * 0.16}
+            checkAt={2.4 + i * 0.75}
+            bob={3 + i * 0.35}
           >
-            <motion.img
-              src={ASSETS.iconCheckGreen}
-              alt=""
-              className="size-5"
-              initial={{ scale: 0, rotate: -90 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ ...POP, delay: 2.5 + i * 0.3 }}
-            />
-            <span className={text14}>{label}</span>
-          </motion.div>
+            {w.node}
+          </WorkCard>
         ))}
       </div>
+      {/* status line: working → all done */}
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={done ? "done" : "busy"}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
+        >
+          <StreamText
+            text={
+              done
+                ? "All done — emails, docs and meetings handled."
+                : "Clearing your inbox and prepping your day…"
+            }
+            delay={done ? 0 : 0.6}
+            className={text16}
+          />
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
@@ -353,9 +659,21 @@ export function EmailIllustration() {
 /* --------------------------- step 3 · capabilities ---------------------------- */
 
 export const CAPABILITIES = [
-  { icon: ASSETS.capLeads, title: "Search company leads", sub: "Extracts, categorizes, and routes invoices" },
-  { icon: ASSETS.capEmail, title: "Draft emails for you", sub: "Extracts, categorizes, and routes invoices" },
-  { icon: ASSETS.capCalendar, title: "Plan your calendar", sub: "Extracts, categorizes, and routes invoices" },
+  {
+    icon: ASSETS.capLeads,
+    title: "Search company leads",
+    sub: "Finds and qualifies prospects across LinkedIn and your CRM",
+  },
+  {
+    icon: ASSETS.capEmail,
+    title: "Draft emails for you",
+    sub: "Triages your inbox and writes replies in your voice",
+  },
+  {
+    icon: ASSETS.capCalendar,
+    title: "Prep you for meetings",
+    sub: "Gathers context and builds an agenda before every call",
+  },
 ];
 
 export function CapabilitiesStep({
