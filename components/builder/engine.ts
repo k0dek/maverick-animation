@@ -11,13 +11,21 @@ export type ShapeId =
   | "blob"
   | "orb"
   | "squircle"
+  | "brick"
   | "gem"
+  | "shard"
   | "drop"
+  | "egg"
   | "puff"
+  | "star"
   | "dome"
+  | "mushroom"
   | "pill"
+  | "bean"
   | "cone"
+  | "leaf"
   | "pebble"
+  | "boulder"
   | "cloud";
 
 export type ShapeDef = {
@@ -52,6 +60,17 @@ export const SHAPES: Record<ShapeId, ShapeDef> = {
   cone: { label: "Cone", n: 1.5, nB: 4.5, ax: 1.05, ay: 1.1, ayB: 0.62, taper: 0.5, tilt: 2, wobA: 0.03, wobB: 0 },
   pebble: { label: "Pebble", n: 2.4, nB: 3.4, ax: 1.28, ay: 0.62, ayB: 0.5, taper: 0.08, tilt: -2, wobA: 0.03, wobB: 0 },
   cloud: { label: "Cloud", n: 2.2, nB: 4, ax: 1.15, ay: 0.85, ayB: 0.6, taper: 0.06, tilt: 0, wobA: 0.02, wobB: 0.11 },
+  // n < 2 pinches the corners (shard, leaf); n > 4 squares them off (brick).
+  // A strong 8-lobe wobble spikes the outline (star); a strong 3-lobe one
+  // makes it lopsided (bean, boulder). Negative taper flares the top.
+  brick: { label: "Brick", n: 7, nB: 7, ax: 1.02, ay: 0.84, ayB: 0.84, taper: 0.02, tilt: 0, wobA: 0.01, wobB: 0 },
+  shard: { label: "Shard", n: 1.08, nB: 1.08, ax: 1.12, ay: 1.14, ayB: 1.14, taper: 0, tilt: 0, wobA: 0.015, wobB: 0 },
+  egg: { label: "Egg", n: 2.2, nB: 2.5, ax: 0.92, ay: 1.12, ayB: 1.02, taper: 0.32, tilt: 0, wobA: 0.015, wobB: 0 },
+  star: { label: "Star", n: 2, nB: 2, ax: 1.05, ay: 1.05, ayB: 1.05, taper: 0, tilt: 0, wobA: 0, wobB: 0.2 },
+  mushroom: { label: "Mushroom", n: 2.1, nB: 6, ax: 1.04, ay: 0.9, ayB: 0.66, taper: -0.22, tilt: 0, wobA: 0.02, wobB: 0 },
+  bean: { label: "Bean", n: 2.5, nB: 2.5, ax: 1.02, ay: 0.95, ayB: 0.95, taper: 0.05, tilt: 14, wobA: 0.095, wobB: 0 },
+  leaf: { label: "Leaf", n: 1.35, nB: 1.35, ax: 1.2, ay: 0.82, ayB: 0.82, taper: 0, tilt: 38, wobA: 0.02, wobB: 0 },
+  boulder: { label: "Boulder", n: 2.9, nB: 3.2, ax: 1.06, ay: 0.94, ayB: 0.88, taper: 0.04, tilt: -6, wobA: 0.06, wobB: 0.055 },
 };
 
 export const SHAPE_IDS = Object.keys(SHAPES) as ShapeId[];
@@ -160,18 +179,18 @@ export function pointAt(
 /* ---------------------------------- palettes --------------------------------- */
 
 export type PaletteId =
-  | "ember"
-  | "coral"
-  | "rose"
-  | "berry"
-  | "indigo"
-  | "ocean"
-  | "mint"
-  | "forest"
-  | "lime"
-  | "honey"
+  | "graphite"
   | "slate"
-  | "graphite";
+  | "honey"
+  | "lime"
+  | "forest"
+  | "mint"
+  | "ocean"
+  | "indigo"
+  | "berry"
+  | "rose"
+  | "coral"
+  | "ember";
 
 export type PaletteDef = {
   label: string;
@@ -185,18 +204,18 @@ export type PaletteDef = {
 // the rest extend the family across the spectrum (graphite = the mono icon
 // treatment). Every ramp stays mid-to-deep so the white eyes always read.
 export const PALETTES: Record<PaletteId, PaletteDef> = {
-  ember: { label: "Ember", from: "#FF7060", to: "#DC9700", tint: "247,107,21" },
-  coral: { label: "Coral", from: "#FFA98B", to: "#E5484D", tint: "229,72,77" },
-  rose: { label: "Rose", from: "#FFAEDC", to: "#D6216B", tint: "214,33,107" },
-  berry: { label: "Berry", from: "#FF8AF0", to: "#7A1FD0", tint: "162,60,220" },
-  indigo: { label: "Indigo", from: "#A9B8FF", to: "#2B18C4", tint: "43,24,196" },
-  ocean: { label: "Ocean", from: "#60F7FF", to: "#0051DC", tint: "2,113,227" },
-  mint: { label: "Mint", from: "#7CFFD4", to: "#00B589", tint: "0,181,137" },
-  forest: { label: "Forest", from: "#A6F17A", to: "#127A3F", tint: "18,122,63" },
-  lime: { label: "Lime", from: "#FFEF60", to: "#58DC00", tint: "88,220,0" },
-  honey: { label: "Honey", from: "#FFEF60", to: "#DCA200", tint: "255,162,2" },
-  slate: { label: "Slate", from: "#A8BDD6", to: "#3D5470", tint: "61,84,112" },
   graphite: { label: "Graphite", from: "#565F6E", to: "#0C0F16", tint: "14,18,27" },
+  slate: { label: "Slate", from: "#A8BDD6", to: "#3D5470", tint: "61,84,112" },
+  honey: { label: "Honey", from: "#FFEF60", to: "#DCA200", tint: "255,162,2" },
+  lime: { label: "Lime", from: "#FFEF60", to: "#58DC00", tint: "88,220,0" },
+  forest: { label: "Forest", from: "#A6F17A", to: "#127A3F", tint: "18,122,63" },
+  mint: { label: "Mint", from: "#7CFFD4", to: "#00B589", tint: "0,181,137" },
+  ocean: { label: "Ocean", from: "#60F7FF", to: "#0051DC", tint: "2,113,227" },
+  indigo: { label: "Indigo", from: "#A9B8FF", to: "#2B18C4", tint: "43,24,196" },
+  berry: { label: "Berry", from: "#FF8AF0", to: "#7A1FD0", tint: "162,60,220" },
+  rose: { label: "Rose", from: "#FFAEDC", to: "#D6216B", tint: "214,33,107" },
+  coral: { label: "Coral", from: "#FFA98B", to: "#E5484D", tint: "229,72,77" },
+  ember: { label: "Ember", from: "#FF7060", to: "#DC9700", tint: "247,107,21" },
 };
 
 export const PALETTE_IDS = Object.keys(PALETTES) as PaletteId[];
@@ -209,33 +228,44 @@ export function hexA(hex: string, a: number): string {
 
 /* ----------------------------------- moods ----------------------------------- */
 
-/** One glowing bar of an eye. Every eye is TWO strokes, which is enough to
-    draw the whole kaomoji alphabet — overlapping vertical = pill, hinged at
-    the top = ^, crossed = x, turned flat = -, stubby wide = o — while staying
-    spring-morphable between any two glyphs. Offsets are fractions of the eye
-    height so the faces survive the eye sliders. */
-export type Stroke = { rot: number; dx: number; dy: number; sy: number; op: number };
-export type EyeGlyph = { a: Stroke; b: Stroke; wK: number };
+/** An eye is ONE stroked polyline — never two overlapping shapes, which come
+    apart the moment a blink squashes them. Three points cover the whole
+    alphabet: collinear vertical = pill, bent = caret, collinear horizontal =
+    dash. Morphing between glyphs is just lerping six numbers, and round caps
+    plus round joins keep it a single continuous form at every step.
 
-const S = (rot: number, dx: number, dy: number, sy: number, op: number): Stroke => ({ rot, dx, dy, sy, op });
-const pill = (sy = 1): EyeGlyph => ({ a: S(0, 0, 0, sy, 1), b: S(0, 0, 0, sy, 0), wK: 1 });
-/** ^ — two legs overlapping at the apex, so they fuse into ONE bent stroke
-    (the glow lives on the eye container, not the legs — see EyeStroke) */
-const caret: EyeGlyph = { a: S(42, -0.13, 0.02, 0.58, 1), b: S(-42, 0.13, 0.02, 0.58, 1), wK: 0.72 };
-const cross: EyeGlyph = { a: S(45, 0, 0, 0.78, 1), b: S(-45, 0, 0, 0.78, 1), wK: 0.85 };
-const dash: EyeGlyph = { a: S(90, 0, 0, 0.5, 1), b: S(90, 0, 0, 0.5, 0), wK: 1 };
-const closed: EyeGlyph = { a: S(90, 0, 0, 0.35, 1), b: S(90, 0, 0, 0.35, 0), wK: 1 };
-const dot: EyeGlyph = { a: S(0, 0, 0, 0.5, 1), b: S(0, 0, 0, 0.5, 0), wK: 1.4 };
-
-export type MoodEyes = {
-  L: EyeGlyph;
-  R: EyeGlyph;
-  tiltL: number;
-  tiltR: number;
-  dy: number;
-  gapK: number;
-  hK: number;
+    Points are in unit box coords (x, y ∈ [-0.5, 0.5]) measured on the stroke
+    CENTRE line; the renderer insets them by half the stroke, so a glyph
+    spanning the full range ends up exactly the size of its eye box. */
+export type EyeGlyph = {
+  p: [number, number, number, number, number, number];
+  /** stroke thickness, as a fraction of the eye box width */
+  sw: number;
 };
+
+const pill = (sy = 1): EyeGlyph => ({ p: [0, -0.5 * sy, 0, 0, 0, 0.5 * sy], sw: 1 });
+/** ^ — a single bent stroke, not two legs meeting */
+const caret: EyeGlyph = { p: [-0.5, 0.28, 0, -0.32, 0.5, 0.28], sw: 0.46 };
+const dash: EyeGlyph = { p: [-0.5, 0, 0, 0, 0.5, 0], sw: 0.44 };
+
+export type EyeSide = {
+  g: EyeGlyph;
+  /** width / height scale, relative to the configured eye size */
+  w: number;
+  h: number;
+  /** horizontal slant, in degrees — the lid angle that carries most of the mood */
+  skew: number;
+  rot: number;
+  dx: number;
+  dy: number;
+};
+
+const E = (
+  g: EyeGlyph,
+  { w = 1, h = 1, skew = 0, rot = 0, dx = 0, dy = 0 }: Partial<Omit<EyeSide, "g">> = {},
+): EyeSide => ({ g, w, h, skew, rot, dx, dy });
+
+export type MoodEyes = { L: EyeSide; R: EyeSide; gapK: number };
 
 export type MoodBody = {
   rot: number;
@@ -246,127 +276,161 @@ export type MoodBody = {
 
 export type MoodId =
   | "neutral"
+  | "attentive"
   | "happy"
-  | "sad"
+  | "laughing"
   | "excited"
-  | "sleepy"
+  | "proud"
   | "curious"
+  | "confused"
+  | "suspicious"
+  | "unimpressed"
   | "focused"
-  | "joyful"
-  | "squeezed"
-  | "surprised"
-  | "dizzy"
-  | "meh"
-  | "smitten"
-  | "tearful"
   | "angry"
-  | "shy";
+  | "sad"
+  | "scared"
+  | "shy"
+  | "sleepy";
 
-export type MoodDef = { label: string; line: string; eyes: MoodEyes; body: MoodBody };
+export type MoodDef = { label: string; eyes: MoodEyes; body: MoodBody };
 
-// sad reuses the onboarding slump exactly: inner corners up (±22°), lids at 0.72,
-// the whole body leaning -6° — so the builder stays in character with the funnel.
-// The kaomoji row (^_^, >_<, o_o, x_x, -_-, :*, T_T) builds on the same strokes;
-// >_< is just ^_^ with each eye turned 90° toward the other.
+// sad keeps the onboarding slump (inner corners up, lids low, body leaning),
+// so the studio stays in character with the funnel. The kaomoji row
+// (^_^, >_<, o_o, x_x, -_-, :*, T_T) builds on the same two strokes.
 export const MOODS: Record<MoodId, MoodDef> = {
   neutral: {
     label: "Neutral",
-    line: "Ready when you are.",
-    eyes: { L: pill(1), R: pill(1), tiltL: 0, tiltR: 0, dy: 0, gapK: 1, hK: 1 },
+    eyes: { L: E(pill()), R: E(pill()), gapK: 1 },
     body: { rot: 0, dy: 0, breathDepth: 0.012, breathSpeed: 0.26 },
+  },
+  attentive: {
+    label: "Attentive",
+    eyes: {
+      L: E(pill(), { h: 1.12, w: 1.05, dy: -0.04 }),
+      R: E(pill(), { h: 1.12, w: 1.05, dy: -0.04 }),
+      gapK: 1.02,
+    },
+    body: { rot: 0, dy: -1, breathDepth: 0.016, breathSpeed: 0.4 },
   },
   happy: {
     label: "Happy",
-    line: "Feeling great today!",
-    eyes: { L: pill(0.88), R: pill(0.88), tiltL: -8, tiltR: 8, dy: -3, gapK: 1.02, hK: 1 },
+    eyes: {
+      L: E(pill(0.88), { rot: -8, dy: -0.07 }),
+      R: E(pill(0.88), { rot: 8, dy: -0.07 }),
+      gapK: 1.02,
+    },
     body: { rot: 0, dy: -1, breathDepth: 0.016, breathSpeed: 0.34 },
   },
-  sad: {
-    label: "Sad",
-    line: "Oh… okay.",
-    eyes: { L: pill(0.72), R: pill(0.72), tiltL: 22, tiltR: -22, dy: 3, gapK: 1, hK: 1 },
-    body: { rot: -6, dy: 3, breathDepth: 0.008, breathSpeed: 0.18 },
+  laughing: {
+    label: "Laughing",
+    eyes: { L: E(caret, { h: 0.72, dy: -0.05 }), R: E(caret, { h: 0.72, dy: -0.05 }), gapK: 1.04 },
+    body: { rot: 0, dy: -2, breathDepth: 0.032, breathSpeed: 0.95 },
   },
   excited: {
     label: "Excited",
-    line: "Let's go — what's first?",
-    eyes: { L: pill(1.14), R: pill(1.14), tiltL: -4, tiltR: 4, dy: -5, gapK: 1.06, hK: 1.06 },
+    eyes: {
+      L: E(pill(), { h: 1.2, w: 1.08, rot: -4, dy: -0.11 }),
+      R: E(pill(), { h: 1.2, w: 1.08, rot: 4, dy: -0.11 }),
+      gapK: 1.06,
+    },
     body: { rot: 0, dy: -2, breathDepth: 0.022, breathSpeed: 0.5 },
   },
-  sleepy: {
-    label: "Sleepy",
-    line: "Five more minutes…",
-    eyes: { L: pill(0.34), R: pill(0.34), tiltL: -6, tiltR: 6, dy: 4, gapK: 1, hK: 1 },
-    body: { rot: -3, dy: 2, breathDepth: 0.02, breathSpeed: 0.12 },
+  proud: {
+    label: "Proud",
+    eyes: { L: E(caret, { h: 0.6 }), R: E(caret, { h: 0.6 }), gapK: 1.06 },
+    body: { rot: 0, dy: -3, breathDepth: 0.02, breathSpeed: 0.28 },
   },
   curious: {
     label: "Curious",
-    line: "Ooh — what's that?",
-    eyes: { L: pill(1.08), R: pill(0.72), tiltL: -3, tiltR: 10, dy: -2, gapK: 1.04, hK: 1 },
+    eyes: {
+      L: E(pill(), { h: 1.1, rot: -3, dy: -0.05 }),
+      R: E(pill(), { h: 0.68, rot: 10, dy: 0.02 }),
+      gapK: 1.04,
+    },
     body: { rot: 3, dy: 0, breathDepth: 0.014, breathSpeed: 0.3 },
+  },
+  confused: {
+    label: "Confused",
+    // deliberately lopsided: a small squashed eye beside a wide slanted one
+    eyes: {
+      L: E(pill(), { w: 0.85, h: 0.46, dy: 0.02 }),
+      R: E(pill(), { w: 1.5, h: 0.44, rot: -20, skew: -12, dy: -0.04 }),
+      gapK: 1.08,
+    },
+    body: { rot: 5, dy: 0, breathDepth: 0.012, breathSpeed: 0.28 },
+  },
+  suspicious: {
+    label: "Suspicious",
+    eyes: {
+      L: E(pill(), { h: 0.36, skew: 12, dy: 0.04 }),
+      R: E(pill(), { h: 0.36, skew: -12, dy: 0.04 }),
+      gapK: 0.98,
+    },
+    body: { rot: 2, dy: 1, breathDepth: 0.01, breathSpeed: 0.22 },
+  },
+  unimpressed: {
+    label: "Unimpressed",
+    eyes: {
+      L: E(dash, { h: 0.62, dy: 0.05 }),
+      R: E(dash, { h: 0.62, dy: 0.05 }),
+      gapK: 1,
+    },
+    body: { rot: -2, dy: 1, breathDepth: 0.007, breathSpeed: 0.15 },
   },
   focused: {
     label: "Focused",
-    line: "On it.",
-    eyes: { L: pill(0.56), R: pill(0.56), tiltL: 6, tiltR: -6, dy: -1, gapK: 0.94, hK: 1 },
+    eyes: {
+      L: E(pill(0.56), { rot: 6 }),
+      R: E(pill(0.56), { rot: -6 }),
+      gapK: 0.94,
+    },
     body: { rot: 0, dy: 0, breathDepth: 0.008, breathSpeed: 0.22 },
-  },
-  joyful: {
-    label: "^_^",
-    line: "Best. Day. Ever.",
-    eyes: { L: caret, R: caret, tiltL: 0, tiltR: 0, dy: -2, gapK: 1.04, hK: 1 },
-    body: { rot: 0, dy: -1, breathDepth: 0.018, breathSpeed: 0.4 },
-  },
-  squeezed: {
-    label: ">_<",
-    line: "Ngh — almost there…",
-    // rotated glyphs occupy the eye HEIGHT horizontally, so they need extra
-    // gap (and a size trim) to read as two distinct chevrons
-    eyes: { L: caret, R: caret, tiltL: 90, tiltR: -90, dy: 0, gapK: 1.3, hK: 0.82 },
-    body: { rot: 0, dy: 0, breathDepth: 0.006, breathSpeed: 0.7 },
-  },
-  surprised: {
-    label: "o_o",
-    line: "Wait — what?!",
-    eyes: { L: dot, R: dot, tiltL: 0, tiltR: 0, dy: -2, gapK: 1.06, hK: 1 },
-    body: { rot: 0, dy: -2, breathDepth: 0.005, breathSpeed: 0.6 },
-  },
-  dizzy: {
-    label: "x_x",
-    line: "Whoa, everything's spinning…",
-    eyes: { L: cross, R: cross, tiltL: 0, tiltR: 0, dy: 0, gapK: 1, hK: 1 },
-    body: { rot: 0, dy: 1, breathDepth: 0.012, breathSpeed: 0.2 },
-  },
-  meh: {
-    label: "-_-",
-    line: "Meh.",
-    eyes: { L: dash, R: dash, tiltL: 0, tiltR: 0, dy: 1, gapK: 1, hK: 1 },
-    body: { rot: -2, dy: 1, breathDepth: 0.008, breathSpeed: 0.16 },
-  },
-  smitten: {
-    label: ":*",
-    line: "Mwah! You're the best.",
-    eyes: { L: pill(0.9), R: closed, tiltL: -6, tiltR: 8, dy: -2, gapK: 1.02, hK: 1 },
-    body: { rot: 2, dy: -1, breathDepth: 0.02, breathSpeed: 0.45 },
-  },
-  tearful: {
-    label: "T_T",
-    line: "I'm fine. Totally fine…",
-    eyes: { L: pill(0.85), R: pill(0.85), tiltL: 0, tiltR: 0, dy: 2, gapK: 1, hK: 1 },
-    body: { rot: -5, dy: 3, breathDepth: 0.01, breathSpeed: 0.15 },
   },
   angry: {
     label: "Angry",
-    line: "Grrr. Not okay.",
-    // inverse of sad: inner corners DOWN, lids narrowed
-    eyes: { L: pill(0.6), R: pill(0.6), tiltL: -20, tiltR: 20, dy: -1, gapK: 0.96, hK: 1 },
-    body: { rot: 0, dy: 0, breathDepth: 0.01, breathSpeed: 0.55 },
+    // inverse of sad: inner corners driven DOWN, lids narrowed and slanted
+    eyes: {
+      L: E(pill(), { h: 0.58, rot: -20, skew: -10 }),
+      R: E(pill(), { h: 0.58, rot: 20, skew: 10 }),
+      gapK: 0.96,
+    },
+    body: { rot: 0, dy: 0, breathDepth: 0.01, breathSpeed: 0.6 },
+  },
+  sad: {
+    label: "Sad",
+    eyes: {
+      L: E(pill(0.72), { rot: 22, dy: 0.07 }),
+      R: E(pill(0.72), { rot: -22, dy: 0.07 }),
+      gapK: 1,
+    },
+    body: { rot: -6, dy: 3, breathDepth: 0.008, breathSpeed: 0.18 },
+  },
+  scared: {
+    label: "Scared",
+    eyes: {
+      L: E(pill(), { w: 1.25, h: 1.22, dy: 0.03 }),
+      R: E(pill(), { w: 1.25, h: 1.22, dy: 0.03 }),
+      gapK: 1.06,
+    },
+    body: { rot: 0, dy: 2, breathDepth: 0.006, breathSpeed: 1.15 },
   },
   shy: {
     label: "Shy",
-    line: "Oh… hi.",
-    eyes: { L: pill(0.5), R: pill(0.5), tiltL: 0, tiltR: 0, dy: 3, gapK: 1.12, hK: 0.9 },
+    eyes: {
+      L: E(pill(0.5), { h: 0.9, dy: 0.07 }),
+      R: E(pill(0.5), { h: 0.9, dy: 0.07 }),
+      gapK: 1.12,
+    },
     body: { rot: -3, dy: 2, breathDepth: 0.012, breathSpeed: 0.2 },
+  },
+  sleepy: {
+    label: "Sleepy",
+    eyes: {
+      L: E(pill(0.34), { rot: -6, dy: 0.09 }),
+      R: E(pill(0.34), { rot: 6, dy: 0.09 }),
+      gapK: 1,
+    },
+    body: { rot: -3, dy: 2, breathDepth: 0.02, breathSpeed: 0.12 },
   },
 };
 
@@ -505,8 +569,6 @@ export function randomConfig(current: AgentConfig): AgentConfig {
     shape: pick(SHAPE_IDS),
     palette: pick(PALETTE_IDS),
     mood: pick(MOOD_IDS),
-    // clean silhouettes most of the time; hands are the occasional surprise
-    hands: pick(["none", "none", "none", "side", "wave"] as const),
     eyes: {
       size: Math.round((0.85 + Math.random() * 0.4) * 100) / 100,
       height: Math.round(34 + Math.random() * 24),

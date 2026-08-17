@@ -76,9 +76,10 @@ export function MoodCard({
 }) {
   const m = MOODS[id];
   const pal = PALETTES[palette];
+  // mirrors the live rig's per-eye box so the thumbnail is a true preview
   const eyes = [
-    { g: m.eyes.L, tilt: m.eyes.tiltL, left: 9 },
-    { g: m.eyes.R, tilt: m.eyes.tiltR, left: 20 },
+    { e: m.eyes.L, left: 9 },
+    { e: m.eyes.R, left: 20 },
   ];
   return (
     <motion.button
@@ -96,28 +97,39 @@ export function MoodCard({
         className="relative size-9 rounded-full transition-colors duration-300"
         style={{ backgroundImage: `linear-gradient(180deg, ${pal.from} -30%, ${pal.to} 100%)` }}
       >
-        {eyes.map(({ g, tilt, left }, i) => (
-          <span
-            key={i}
-            className="absolute top-[10px] h-[13px]"
-            style={{
-              left,
-              width: 6 * g.wK,
-              transform: `translateY(${m.eyes.dy * 0.2}px) rotate(${tilt}deg)`,
-            }}
-          >
-            {[g.a, g.b].map((st, j) => (
-              <span
-                key={j}
-                className="absolute inset-0 rounded-full bg-white"
-                style={{
-                  opacity: st.op,
-                  transform: `translate(${st.dx * 13}px, ${st.dy * 13}px) rotate(${st.rot}deg) scaleY(${st.sy})`,
-                }}
+        {eyes.map(({ e, left }, i) => {
+          // same single-polyline geometry as the live rig, at thumbnail scale
+          const W = 6 * e.w;
+          const H = 13 * e.h;
+          const t = Math.max(Math.min(e.g.sw * W, W, H), 1);
+          const iw = Math.max(W - t, 0);
+          const ih = Math.max(H - t, 0);
+          const [x0, y0, x1, y1, x2, y2] = e.g.p;
+          const X = (x: number) => (W / 2 + x * iw).toFixed(2);
+          const Y = (y: number) => (H / 2 + y * ih).toFixed(2);
+          return (
+            <svg
+              key={i}
+              className="absolute overflow-visible"
+              width={W}
+              height={H}
+              style={{
+                left: left + e.dx * 13,
+                top: 10 + e.dy * 13,
+                transform: `rotate(${e.rot}deg) skewX(${e.skew}deg)`,
+              }}
+            >
+              <path
+                d={`M${X(x0)} ${Y(y0)}L${X(x1)} ${Y(y1)}L${X(x2)} ${Y(y2)}`}
+                stroke="#fff"
+                strokeWidth={t}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
               />
-            ))}
-          </span>
-        ))}
+            </svg>
+          );
+        })}
       </span>
       <span className="max-w-full truncate text-[11px] font-medium leading-3 tracking-[-0.22px] text-black/50">
         {m.label}

@@ -28,7 +28,6 @@ import {
   type ShapeId,
   type StateId,
   TEX0,
-  type Stroke,
   type TextureSettings,
 } from "./engine";
 
@@ -62,12 +61,11 @@ type ShapeMVs = {
   wobB: MotionValue<number>;
 };
 
-type StrokeSprings = {
-  rot: MotionValue<number>;
-  dx: MotionValue<number>;
-  dy: MotionValue<number>;
-  sy: MotionValue<number>;
-  op: MotionValue<number>;
+/** One eye's polyline: three points plus stroke thickness, all springs, so
+    any glyph morphs into any other by lerping seven numbers. */
+type GlyphSprings = {
+  p: MotionValue<number>[];
+  sw: MotionValue<number>;
 };
 
 type Particle = {
@@ -101,13 +99,17 @@ type Props = {
   size?: number;
 };
 
-function useStrokeSprings(): StrokeSprings {
+function useGlyphSprings(): GlyphSprings {
   return {
-    rot: useSpring(0, FACE_SPRING),
-    dx: useSpring(0, FACE_SPRING),
-    dy: useSpring(0, FACE_SPRING),
-    sy: useSpring(1, FACE_SPRING),
-    op: useSpring(1, FACE_SPRING),
+    p: [
+      useSpring(0, FACE_SPRING),
+      useSpring(-0.5, FACE_SPRING),
+      useSpring(0, FACE_SPRING),
+      useSpring(0, FACE_SPRING),
+      useSpring(0, FACE_SPRING),
+      useSpring(0.5, FACE_SPRING),
+    ],
+    sw: useSpring(1, FACE_SPRING),
   };
 }
 
@@ -133,8 +135,6 @@ export default function AgentFigure({
   const idRef = useRef(1);
   const [parts, setParts] = useState<Particle[]>([]);
   const [zeds, setZeds] = useState<{ id: number; big: boolean }[]>([]);
-  const [drops, setDrops] = useState<{ id: number; side: -1 | 1 }[]>([]);
-  const [hearts, setHearts] = useState<{ id: number; dx: number; s: number }[]>([]);
 
   const R = size * 0.3;
   const cx = size / 2;
@@ -276,17 +276,23 @@ export default function AgentFigure({
   }, [eyes.size, eyes.height, eyes.gap, eyes.y, wS, hS, gapS, eyS]);
 
   // each eye = two glowing strokes (see EyeGlyph in the engine)
-  const La = useStrokeSprings();
-  const Lb = useStrokeSprings();
-  const Ra = useStrokeSprings();
-  const Rb = useStrokeSprings();
+  const gL = useGlyphSprings();
+  const gR = useGlyphSprings();
+  // per-eye box: width, height, slant, rotation and offset all animate
+  // independently, so a face can be genuinely lopsided (confused, curious)
   const wKL = useSpring(1, FACE_SPRING);
   const wKR = useSpring(1, FACE_SPRING);
+  const hKL = useSpring(1, FACE_SPRING);
+  const hKR = useSpring(1, FACE_SPRING);
+  const skewL = useSpring(0, FACE_SPRING);
+  const skewR = useSpring(0, FACE_SPRING);
   const tiltL = useSpring(0, FACE_SPRING);
   const tiltR = useSpring(0, FACE_SPRING);
-  const dyE = useSpring(0, FACE_SPRING);
+  const dxL = useSpring(0, FACE_SPRING);
+  const dxR = useSpring(0, FACE_SPRING);
+  const dyL = useSpring(0, FACE_SPRING);
+  const dyR = useSpring(0, FACE_SPRING);
   const gapK = useSpring(1, FACE_SPRING);
-  const hK = useSpring(1, FACE_SPRING);
   /** state-driven lid position (sleeping ≈ 0) */
   const openL = useSpring(1, FACE_SPRING);
   const openR = useSpring(1, FACE_SPRING);
@@ -316,11 +322,11 @@ export default function AgentFigure({
 
   /* blinks and lids compress the eye's HEIGHT rather than transform-scaling
      it — a scaled box-shadow glow smears visibly, a re-laid-out one doesn't */
-  const eyeHL = useTransform([hS, hK, blinkL, openL, fitY], (v) => {
+  const eyeHL = useTransform([hS, hKL, blinkL, openL, fitY], (v) => {
     const [h, k, b, o, fy] = v as number[];
     return Math.max(h * k * b * o * fy, 2);
   });
-  const eyeHR = useTransform([hS, hK, blinkR, openR, fitY], (v) => {
+  const eyeHR = useTransform([hS, hKR, blinkR, openR, fitY], (v) => {
     const [h, k, b, o, fy] = v as number[];
     return Math.max(h * k * b * o * fy, 2);
   });
@@ -334,21 +340,23 @@ export default function AgentFigure({
   });
   // eye offsets shrink with the icon form so they stay glued to the body
   // while it collapses into a dot (the lids close in the same beat)
-  const eyeLx = useTransform([gapS, gapK, eyeWL, gazeX, formScale, fitX], (v) => {
-    const [g, k, w, gx, f, fx] = v as number[];
-    return ((-(g * k * fx) / 2) * f - w / 2) + gx * 34 * f;
+  // per-eye dx/dy are fractions of the base eye height, so lopsided faces
+  // keep their proportions when the eye sliders change
+  const eyeLx = useTransform([gapS, gapK, eyeWL, gazeX, formScale, fitX, dxL, hS], (v) => {
+    const [g, k, w, gx, f, fx, dx, base] = v as number[];
+    return ((-(g * k * fx) / 2 + dx * base) * f - w / 2) + gx * 34 * f;
   });
-  const eyeRx = useTransform([gapS, gapK, eyeWR, gazeX, formScale, fitX], (v) => {
-    const [g, k, w, gx, f, fx] = v as number[];
-    return (((g * k * fx) / 2) * f - w / 2) + gx * 34 * f;
+  const eyeRx = useTransform([gapS, gapK, eyeWR, gazeX, formScale, fitX, dxR, hS], (v) => {
+    const [g, k, w, gx, f, fx, dx, base] = v as number[];
+    return (((g * k * fx) / 2 + dx * base) * f - w / 2) + gx * 34 * f;
   });
-  const eyeYL = useTransform([eyS, dyE, eyeHL, gazeY, formScale, fitY], (v) => {
-    const [y, dy, h, gy, f, fy] = v as number[];
-    return ((y + dy) * fy + gy * 24) * f - h / 2;
+  const eyeYL = useTransform([eyS, dyL, eyeHL, gazeY, formScale, fitY, hS], (v) => {
+    const [y, dy, h, gy, f, fy, base] = v as number[];
+    return ((y + dy * base) * fy + gy * 24) * f - h / 2;
   });
-  const eyeYR = useTransform([eyS, dyE, eyeHR, gazeY, formScale, fitY], (v) => {
-    const [y, dy, h, gy, f, fy] = v as number[];
-    return ((y + dy) * fy + gy * 24) * f - h / 2;
+  const eyeYR = useTransform([eyS, dyR, eyeHR, gazeY, formScale, fitY, hS], (v) => {
+    const [y, dy, h, gy, f, fy, base] = v as number[];
+    return ((y + dy * base) * fy + gy * 24) * f - h / 2;
   });
 
   /* mood/state → face + posture targets. States override where they must:
@@ -371,25 +379,26 @@ export default function AgentFigure({
         b = { rot: 0, dy: 0, breathDepth: 0, breathSpeed: 0.2 };
         break;
     }
-    const e = state === "celebrating" ? MOODS.joyful.eyes : m.eyes;
-    const apply = (s: StrokeSprings, v: Stroke) => {
-      s.rot.set(v.rot);
-      s.dx.set(v.dx);
-      s.dy.set(v.dy);
-      s.sy.set(v.sy);
-      s.op.set(v.op);
+    const e = state === "celebrating" ? MOODS.laughing.eyes : m.eyes;
+    const apply = (g: GlyphSprings, v: typeof e.L.g) => {
+      v.p.forEach((n, i) => g.p[i].set(n));
+      g.sw.set(v.sw);
     };
-    apply(La, e.L.a);
-    apply(Lb, e.L.b);
-    apply(Ra, e.R.a);
-    apply(Rb, e.R.b);
-    wKL.set(e.L.wK);
-    wKR.set(e.R.wK);
-    tiltL.set(e.tiltL);
-    tiltR.set(e.tiltR);
-    dyE.set(e.dy);
+    apply(gL, e.L.g);
+    apply(gR, e.R.g);
+    wKL.set(e.L.w);
+    wKR.set(e.R.w);
+    hKL.set(e.L.h);
+    hKR.set(e.R.h);
+    skewL.set(e.L.skew);
+    skewR.set(e.R.skew);
+    tiltL.set(e.L.rot);
+    tiltR.set(e.R.rot);
+    dxL.set(e.L.dx);
+    dxR.set(e.R.dx);
+    dyL.set(e.L.dy);
+    dyR.set(e.R.dy);
     gapK.set(e.gapK);
-    hK.set(e.hK);
     openL.set(open);
     openR.set(open);
     bodyRotM.set(b.rot);
@@ -621,47 +630,6 @@ export default function AgentFigure({
       setZeds([]);
     };
   }, [state]);
-
-  // T_T — tears drip from under both eyes
-  useEffect(() => {
-    if (mood !== "tearful" || morph) return;
-    const spawn = () =>
-      setDrops((d) => [
-        ...d.slice(-6),
-        { id: idRef.current++, side: -1 as const },
-        { id: idRef.current++, side: 1 as const },
-      ]);
-    spawn();
-    const iv = setInterval(spawn, 1500);
-    return () => {
-      clearInterval(iv);
-      setDrops([]);
-    };
-  }, [mood, morph]);
-
-  // :* — little hearts float off
-  useEffect(() => {
-    if (mood !== "smitten" || morph) return;
-    const spawn = () =>
-      setHearts((h) => [
-        ...h.slice(-4),
-        { id: idRef.current++, dx: (Math.random() - 0.3) * 26, s: 0.8 + Math.random() * 0.6 },
-      ]);
-    spawn();
-    const iv = setInterval(spawn, 1400);
-    return () => {
-      clearInterval(iv);
-      setHearts([]);
-    };
-  }, [mood, morph]);
-
-  // x_x — a woozy sway (declared after the mood sync so its cleanup runs first
-  // on mood change, letting the sync effect re-take the rotation target)
-  useEffect(() => {
-    if (mood !== "dizzy" || morph) return;
-    const ctrl = animate(bodyRotM, [-4, 4], { duration: 1.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" });
-    return () => ctrl.stop();
-  }, [mood, morph, bodyRotM]);
 
   // one-shot actions from the controls
   useEffect(() => {
@@ -921,41 +889,20 @@ export default function AgentFigure({
             a caret blooms as ONE bent line, never as two outlined bars. */}
         <motion.div
           className="absolute left-1/2 top-1/2"
-          style={{ x: eyeLx, y: eyeYL, width: eyeWL, height: eyeHL, rotate: faceTiltL, opacity: face, filter: EYE_BLOOM }}
+          style={{ x: eyeLx, y: eyeYL, width: eyeWL, height: eyeHL, rotate: faceTiltL, skewX: skewL, opacity: face, filter: EYE_BLOOM }}
         >
-          <EyeStroke s={La} base={hS} />
-          <EyeStroke s={Lb} base={hS} />
+          <EyeGlyphPath g={gL} w={eyeWL} h={eyeHL} />
         </motion.div>
         <motion.div
           className="absolute left-1/2 top-1/2"
-          style={{ x: eyeRx, y: eyeYR, width: eyeWR, height: eyeHR, rotate: faceTiltR, opacity: face, filter: EYE_BLOOM }}
+          style={{ x: eyeRx, y: eyeYR, width: eyeWR, height: eyeHR, rotate: faceTiltR, skewX: skewR, opacity: face, filter: EYE_BLOOM }}
         >
-          <EyeStroke s={Ra} base={hS} />
-          <EyeStroke s={Rb} base={hS} />
+          <EyeGlyphPath g={gR} w={eyeWR} h={eyeHR} />
         </motion.div>
-
-        {/* tears ride the face so they stay under the eyes through the slump */}
-        {drops.map((t) => (
-          <motion.span
-            key={t.id}
-            className="pointer-events-none absolute rounded-full"
-            style={{
-              left: cx + t.side * ((eyes.gap * eyes.size) / 2 + 2) - 3,
-              top: cy + eyes.y + (eyes.height * eyes.size) / 2 + 4,
-              width: 6,
-              height: 9,
-              backgroundColor: "#9ED9FF",
-            }}
-            initial={{ opacity: 0, y: 0, scaleY: 0.6 }}
-            animate={{ opacity: [0, 0.9, 0], y: 34, scaleY: 1.2 }}
-            transition={{ duration: 1.1, ease: "easeIn" }}
-            onAnimationComplete={() => setDrops((s) => s.filter((q) => q.id !== t.id))}
-          />
-        ))}
 
       </motion.div>
 
-      {/* effects layer — confetti, z's and hearts live outside the body transform */}
+      {/* effects layer — confetti and z's live outside the body transform */}
       <div className="pointer-events-none absolute inset-0">
         {parts.map((p) => (
           <motion.span
@@ -998,19 +945,6 @@ export default function AgentFigure({
             z
           </motion.span>
         ))}
-        {hearts.map((h) => (
-          <motion.span
-            key={h.id}
-            className="absolute select-none font-medium"
-            style={{ left: cx + R * 0.4, top: cy - R * 0.55, fontSize: 15 * h.s, color: "#FF7AA8" }}
-            initial={{ opacity: 0, x: 0, y: 0, scale: 0.4, rotate: -8 }}
-            animate={{ opacity: [0, 1, 0], x: [0, h.dx, h.dx * 1.6], y: -56, scale: h.s, rotate: 10 }}
-            transition={{ duration: 2, ease: "easeOut" }}
-            onAnimationComplete={() => setHearts((s) => s.filter((q) => q.id !== h.id))}
-          >
-            ♥
-          </motion.span>
-        ))}
       </div>
     </div>
   );
@@ -1023,30 +957,43 @@ export default function AgentFigure({
 const EYE_BLOOM =
   "drop-shadow(0 0 6px rgba(255,255,255,0.7)) drop-shadow(0 0 14px rgba(255,255,255,0.4))";
 
-/** One bar of an eye — plain solid white, no glow of its own, so overlapping
-    strokes fuse seamlessly. Offsets are stored as fractions of the base eye
-    height so glyphs survive the eye sliders. */
-function EyeStroke({ s, base }: { s: StrokeSprings; base: MotionValue<number> }) {
-  const x = useTransform([s.dx, base], (v) => {
-    const [d, h] = v as number[];
-    return d * h;
-  });
-  const y = useTransform([s.dy, base], (v) => {
-    const [d, h] = v as number[];
-    return d * h;
-  });
+/** The eye itself: a single round-capped, round-joined polyline. Because it
+    is ONE shape, a blink just flattens it — there are no separate pieces to
+    drift apart. The stroke is inset from the box so a full-range glyph lands
+    exactly at the box size, and it is clamped to the box height so closing
+    the lid thins the stroke instead of inverting it. */
+function EyeGlyphPath({
+  g,
+  w,
+  h,
+}: {
+  g: GlyphSprings;
+  w: MotionValue<number>;
+  h: MotionValue<number>;
+}) {
+  const deps = [w, h, g.sw, ...g.p];
+  const geom = (v: number[]) => {
+    const [W, H, sw, x0, y0, x1, y1, x2, y2] = v;
+    const t = Math.max(Math.min(sw * W, W, H), 1);
+    const iw = Math.max(W - t, 0);
+    const ih = Math.max(H - t, 0);
+    const X = (x: number) => (W / 2 + x * iw).toFixed(2);
+    const Y = (y: number) => (H / 2 + y * ih).toFixed(2);
+    return { t, d: `M${X(x0)} ${Y(y0)}L${X(x1)} ${Y(y1)}L${X(x2)} ${Y(y2)}` };
+  };
+  const d = useTransform(deps, (v) => geom(v as number[]).d);
+  const sw = useTransform(deps, (v) => geom(v as number[]).t);
   return (
-    <motion.span
-      className="absolute inset-0 rounded-full"
-      style={{
-        x,
-        y,
-        rotate: s.rot,
-        scaleY: s.sy,
-        opacity: s.op,
-        backgroundColor: "#fff",
-      }}
-    />
+    <motion.svg className="absolute inset-0 overflow-visible" width={w} height={h}>
+      <motion.path
+        d={d}
+        stroke="#fff"
+        strokeWidth={sw}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </motion.svg>
   );
 }
 
