@@ -8,6 +8,7 @@ export const TAU = Math.PI * 2;
 /* ---------------------------------- shapes ----------------------------------- */
 
 export type ShapeId =
+  | "cloud"
   | "blob"
   | "orb"
   | "squircle"
@@ -25,8 +26,7 @@ export type ShapeId =
   | "cone"
   | "leaf"
   | "pebble"
-  | "boulder"
-  | "cloud";
+  | "boulder";
 
 export type ShapeDef = {
   label: string;
@@ -49,6 +49,7 @@ export type ShapeDef = {
 };
 
 export const SHAPES: Record<ShapeId, ShapeDef> = {
+  cloud: { label: "Cloud", n: 2.2, nB: 4, ax: 1.15, ay: 0.85, ayB: 0.6, taper: 0.06, tilt: 0, wobA: 0.02, wobB: 0.11 },
   blob: { label: "Blob", n: 2.5, nB: 2.5, ax: 1, ay: 0.97, ayB: 0.97, taper: 0.06, tilt: -4, wobA: 0.045, wobB: 0 },
   orb: { label: "Orb", n: 2, nB: 2, ax: 1, ay: 1, ayB: 1, taper: 0, tilt: 0, wobA: 0.015, wobB: 0 },
   squircle: { label: "Squircle", n: 3.8, nB: 3.8, ax: 0.97, ay: 0.97, ayB: 0.97, taper: 0, tilt: 0, wobA: 0.012, wobB: 0 },
@@ -59,7 +60,6 @@ export const SHAPES: Record<ShapeId, ShapeDef> = {
   pill: { label: "Pill", n: 2.6, nB: 2.6, ax: 0.66, ay: 1.18, ayB: 1.18, taper: 0.05, tilt: 0, wobA: 0.02, wobB: 0 },
   cone: { label: "Cone", n: 1.5, nB: 4.5, ax: 1.05, ay: 1.1, ayB: 0.62, taper: 0.5, tilt: 2, wobA: 0.03, wobB: 0 },
   pebble: { label: "Pebble", n: 2.4, nB: 3.4, ax: 1.28, ay: 0.62, ayB: 0.5, taper: 0.08, tilt: -2, wobA: 0.03, wobB: 0 },
-  cloud: { label: "Cloud", n: 2.2, nB: 4, ax: 1.15, ay: 0.85, ayB: 0.6, taper: 0.06, tilt: 0, wobA: 0.02, wobB: 0.11 },
   // n < 2 pinches the corners (shard, leaf); n > 4 squares them off (brick).
   // A strong 8-lobe wobble spikes the outline (star); a strong 3-lobe one
   // makes it lopsided (bean, boulder). Negative taper flares the top.
@@ -559,7 +559,12 @@ export function presetConfig(p: PresetDef): AgentConfig {
   };
 }
 
-export const DEFAULT_CONFIG: AgentConfig = presetConfig(PRESETS[0]);
+// the studio opens on the head of each row — first shape, first colour
+export const DEFAULT_CONFIG: AgentConfig = {
+  ...presetConfig(PRESETS[0]),
+  shape: SHAPE_IDS[0],
+  palette: PALETTE_IDS[0],
+};
 
 const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
 

@@ -5,6 +5,7 @@ import { motion, MotionConfig } from "framer-motion";
 import { ASSETS } from "@/components/onboarding/assets";
 import { SOFT } from "@/components/onboarding/primitives";
 import AgentFigure from "./AgentFigure";
+import AvatarView from "./AvatarView";
 import { Chip, GhostButton, MoodCard, Section, ShapeThumb, Slider, Swatch } from "./controls";
 import {
   DEFAULT_CONFIG,
@@ -35,6 +36,7 @@ const TOUR: StateId[] = ["loading", "voice", "alert", "celebrating", "sleeping",
 
 export default function AgentBuilder() {
   const [cfg, setCfg] = useState<AgentConfig>(DEFAULT_CONFIG);
+  const [view, setView] = useState<"studio" | "avatar">("studio");
   const [tour, setTour] = useState(false);
   const [blinkN, setBlinkN] = useState(0);
   const [winkN, setWinkN] = useState(0);
@@ -106,20 +108,40 @@ export default function AgentBuilder() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: EASE }}
           >
-            {/* mascot only — no captions, no status text */}
-            <AgentFigure
-              shape={cfg.shape}
-              palette={cfg.palette}
-              mood={cfg.mood}
-              state={cfg.state}
-              hands={cfg.hands}
-              eyes={cfg.eyes}
-              trackRef={trackRef}
-              blinkSignal={blinkN}
-              winkSignal={winkN}
-              hopSignal={hopN}
-              size={420}
-            />
+            {/* stage / avatar toggle */}
+            <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 gap-1 rounded-full border border-[#f0f0f0] bg-white p-1 shadow-[0_1px_2px_rgba(14,18,27,0.04)]">
+              {(["studio", "avatar"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setView(v)}
+                  className={`h-7 cursor-pointer rounded-full px-3.5 text-[13px] font-medium capitalize leading-4 tracking-[-0.26px] transition-colors ${
+                    view === v ? "bg-black text-white" : "text-black/50 hover:text-black"
+                  }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+
+            {view === "studio" ? (
+              /* mascot only — no captions, no status text */
+              <AgentFigure
+                shape={cfg.shape}
+                palette={cfg.palette}
+                mood={cfg.mood}
+                state={cfg.state}
+                hands={cfg.hands}
+                eyes={cfg.eyes}
+                trackRef={trackRef}
+                blinkSignal={blinkN}
+                winkSignal={winkN}
+                hopSignal={hopN}
+                size={420}
+              />
+            ) : (
+              <AvatarView cfg={cfg} />
+            )}
           </motion.div>
 
           {/* controls */}

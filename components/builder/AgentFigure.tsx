@@ -97,6 +97,9 @@ type Props = {
   hopSignal?: number;
   onPoke?: () => void;
   size?: number;
+  /** avatar mode: drop the halo and floor shadow so the figure can be cropped
+      into a circle that supplies its own background */
+  bare?: boolean;
 };
 
 function useGlyphSprings(): GlyphSprings {
@@ -127,6 +130,7 @@ export default function AgentFigure({
   hopSignal = 0,
   onPoke,
   size = 340,
+  bare = false,
 }: Props) {
   const reduced = useReducedMotion();
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
@@ -139,6 +143,10 @@ export default function AgentFigure({
   const R = size * 0.3;
   const cx = size / 2;
   const cy = size / 2;
+  /** Filter primitives work in user units, so every blur/offset below is
+      tuned for the studio size and scaled from there — otherwise a 32px
+      avatar gets a light bloom wider than its own body and washes out. */
+  const k = size / 340;
   const pal = PALETTES[palette];
   const morph = MORPHS[state] ?? null;
 
@@ -148,10 +156,10 @@ export default function AgentFigure({
      Springing the blur to 0 removes that rim entirely for a plain limbless
      mascot, while still melting (and un-melting) smoothly when limbs appear. */
   const needsGoo = hands !== "none" || morph !== null;
-  const gooBlur = useSpring(needsGoo ? texture.melt : 0, { stiffness: 90, damping: 20 });
+  const gooBlur = useSpring(needsGoo ? texture.melt * k : 0, { stiffness: 90, damping: 20 });
   useEffect(() => {
-    gooBlur.set(needsGoo ? texture.melt : 0);
-  }, [needsGoo, texture.melt, gooBlur]);
+    gooBlur.set(needsGoo ? texture.melt * k : 0);
+  }, [needsGoo, texture.melt, k, gooBlur]);
 
   /* ------------------------------- silhouette -------------------------------- */
 
@@ -232,10 +240,10 @@ export default function AgentFigure({
   const gazeX = useSpring(0, GAZE_SPRING);
   const gazeY = useSpring(0, GAZE_SPRING);
 
-  const bodyX = useTransform(gazeX, (g) => g * 10);
+  const bodyX = useTransform(gazeX, (g) => g * 10 * k);
   const bodyY = useTransform([hopY, bodyDY, gazeY], (v) => {
     const [h, dy, g] = v as number[];
-    return h + dy + g * 7;
+    return h + dy + g * 7 * k;
   });
   const bodyRot = useTransform([bodyRotM, gazeX], (v) => {
     const [r, g] = v as number[];
@@ -263,17 +271,19 @@ export default function AgentFigure({
 
   /* ---------------------------------- eyes ------------------------------------ */
 
-  const wS = useSpring(23 * eyes.size, FACE_SPRING);
-  const hS = useSpring(eyes.height * eyes.size, FACE_SPRING);
-  const gapS = useSpring(eyes.gap * eyes.size, FACE_SPRING);
-  const eyS = useSpring(eyes.y, FACE_SPRING);
+  // eye settings are authored at studio scale, so they scale by k like the
+  // body — otherwise a small avatar keeps studio-sized eyes and is all face
+  const wS = useSpring(23 * eyes.size * k, FACE_SPRING);
+  const hS = useSpring(eyes.height * eyes.size * k, FACE_SPRING);
+  const gapS = useSpring(eyes.gap * eyes.size * k, FACE_SPRING);
+  const eyS = useSpring(eyes.y * k, FACE_SPRING);
 
   useEffect(() => {
-    wS.set(23 * eyes.size);
-    hS.set(eyes.height * eyes.size);
-    gapS.set(eyes.gap * eyes.size);
-    eyS.set(eyes.y);
-  }, [eyes.size, eyes.height, eyes.gap, eyes.y, wS, hS, gapS, eyS]);
+    wS.set(23 * eyes.size * k);
+    hS.set(eyes.height * eyes.size * k);
+    gapS.set(eyes.gap * eyes.size * k);
+    eyS.set(eyes.y * k);
+  }, [eyes.size, eyes.height, eyes.gap, eyes.y, k, wS, hS, gapS, eyS]);
 
   // each eye = two glowing strokes (see EyeGlyph in the engine)
   const gL = useGlyphSprings();
@@ -343,20 +353,20 @@ export default function AgentFigure({
   // per-eye dx/dy are fractions of the base eye height, so lopsided faces
   // keep their proportions when the eye sliders change
   const eyeLx = useTransform([gapS, gapK, eyeWL, gazeX, formScale, fitX, dxL, hS], (v) => {
-    const [g, k, w, gx, f, fx, dx, base] = v as number[];
-    return ((-(g * k * fx) / 2 + dx * base) * f - w / 2) + gx * 34 * f;
+    const [g, gk, w, gx, f, fx, dx, base] = v as number[];
+    return ((-(g * gk * fx) / 2 + dx * base) * f - w / 2) + gx * 34 * k * f;
   });
   const eyeRx = useTransform([gapS, gapK, eyeWR, gazeX, formScale, fitX, dxR, hS], (v) => {
-    const [g, k, w, gx, f, fx, dx, base] = v as number[];
-    return (((g * k * fx) / 2 + dx * base) * f - w / 2) + gx * 34 * f;
+    const [g, gk, w, gx, f, fx, dx, base] = v as number[];
+    return (((g * gk * fx) / 2 + dx * base) * f - w / 2) + gx * 34 * k * f;
   });
   const eyeYL = useTransform([eyS, dyL, eyeHL, gazeY, formScale, fitY, hS], (v) => {
     const [y, dy, h, gy, f, fy, base] = v as number[];
-    return ((y + dy * base) * fy + gy * 24) * f - h / 2;
+    return ((y + dy * base) * fy + gy * 24 * k) * f - h / 2;
   });
   const eyeYR = useTransform([eyS, dyR, eyeHR, gazeY, formScale, fitY, hS], (v) => {
     const [y, dy, h, gy, f, fy, base] = v as number[];
-    return ((y + dy * base) * fy + gy * 24) * f - h / 2;
+    return ((y + dy * base) * fy + gy * 24 * k) * f - h / 2;
   });
 
   /* mood/state → face + posture targets. States override where they must:
@@ -533,12 +543,12 @@ export default function AgentFigure({
       ...prev,
       ...Array.from({ length: 14 }, () => ({
         id: idRef.current++,
-        x0: (Math.random() - 0.5) * 44,
-        dx: (Math.random() - 0.5) * 190,
-        peak: 60 + Math.random() * 80,
-        fall: 110 + Math.random() * 40,
+        x0: (Math.random() - 0.5) * 44 * k,
+        dx: (Math.random() - 0.5) * 190 * k,
+        peak: (60 + Math.random() * 80) * k,
+        fall: (110 + Math.random() * 40) * k,
         color: CONFETTI[Math.floor(Math.random() * CONFETTI.length)],
-        size: 5 + Math.random() * 3.5,
+        size: (5 + Math.random() * 3.5) * k,
         round: Math.random() > 0.5,
         spin: 220 + Math.random() * 340,
         dur: 1.05 + Math.random() * 0.35,
@@ -575,7 +585,7 @@ export default function AgentFigure({
   // loading: the body IS the middle dot — bounce it in step with the satellites
   useEffect(() => {
     if (morph !== "dots") return;
-    const ctrl = animate(iconY, [0, -13, 0], {
+    const ctrl = animate(iconY, [0, -R * 0.13, 0], {
       duration: 0.8,
       ease: "easeInOut",
       repeat: Infinity,
@@ -586,7 +596,7 @@ export default function AgentFigure({
       ctrl.stop();
       iconY.set(0);
     };
-  }, [morph, iconY]);
+  }, [morph, iconY, R]);
 
   // voice: the body is the center bar of the equalizer
   useEffect(() => {
@@ -604,7 +614,7 @@ export default function AgentFigure({
   // alert: the body is the "!" stem — hop for attention
   useEffect(() => {
     if (morph !== "bang") return;
-    const ctrl = animate(iconY, [0, -8, 0], {
+    const ctrl = animate(iconY, [0, -R * 0.08, 0], {
       duration: 0.5,
       ease: "easeInOut",
       repeat: Infinity,
@@ -615,7 +625,7 @@ export default function AgentFigure({
       ctrl.stop();
       iconY.set(0);
     };
-  }, [morph, iconY]);
+  }, [morph, iconY, R]);
 
   // sleeping: a slow drift of z's
   useEffect(() => {
@@ -662,24 +672,28 @@ export default function AgentFigure({
       style={{ width: size, height: size }}
       onClick={poke}
     >
-      {/* halo — a soft accent glow; the LIVING color happens inside the body */}
-      <div
-        className="absolute rounded-full blur-3xl transition-colors duration-700"
-        style={{ inset: size * 0.09, backgroundColor: `rgba(${pal.tint},0.14)` }}
-      />
+      {!bare && (
+        <>
+          {/* halo — a soft accent glow; the LIVING color happens inside the body */}
+          <div
+            className="absolute rounded-full blur-3xl transition-colors duration-700"
+            style={{ inset: size * 0.09, backgroundColor: `rgba(${pal.tint},0.14)` }}
+          />
 
-      {/* floor shadow */}
-      <motion.div
-        className="absolute left-1/2 rounded-[50%] bg-black/[0.08] blur-xl"
-        style={{
-          width: size * 0.46,
-          height: size * 0.06,
-          top: cy + R * 1.16,
-          x: "-50%",
-          scaleX: shadowScale,
-          opacity: shadowOp,
-        }}
-      />
+          {/* floor shadow */}
+          <motion.div
+            className="absolute left-1/2 rounded-[50%] bg-black/[0.08] blur-xl"
+            style={{
+              width: size * 0.46,
+              height: size * 0.06,
+              top: cy + R * 1.16,
+              x: "-50%",
+              scaleX: shadowScale,
+              opacity: shadowOp,
+            }}
+          />
+        </>
+      )}
 
       {/* body — everything below rides posture, hops and breath together */}
       <motion.div
@@ -752,14 +766,14 @@ export default function AgentFigure({
               <feComponentTransfer in="SourceAlpha" result="hardAlpha">
                 <feFuncA type="table" tableValues="0 0 1 1" />
               </feComponentTransfer>
-              <feOffset in="hardAlpha" dy="8" result="offTop" />
-              <feGaussianBlur in="offTop" stdDeviation="10" result="blurTop" />
+              <feOffset in="hardAlpha" dy={8 * k} result="offTop" />
+              <feGaussianBlur in="offTop" stdDeviation={10 * k} result="blurTop" />
               <feComposite in="blurTop" in2="hardAlpha" operator="arithmetic" k2="-1" k3="1" result="innTop" />
               <feColorMatrix in="innTop" type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.55 0" result="lightTop" />
               <feBlend mode="normal" in="lightTop" in2="SourceGraphic" result="lit" />
               {/* (no dark bottom occlusion — a multiplied inner shade reads as
                   a dirty outline hugging the silhouette) */}
-              <feTurbulence type="fractalNoise" baseFrequency={texture.scale} numOctaves="2" seed="4" result="noise" />
+              <feTurbulence type="fractalNoise" baseFrequency={texture.scale / k} numOctaves="2" seed="4" result="noise" />
               <feColorMatrix in="noise" type="saturate" values="0" result="noiseG" />
               <feComponentTransfer in="noiseG" result="noiseC">
                 <feFuncR type="linear" slope={grainSlope} intercept={grainIcpt} />
@@ -828,7 +842,7 @@ export default function AgentFigure({
                       key={`dot${side}`}
                       fill={gradUrl}
                       initial={{ cx, cy, r: 0 }}
-                      animate={{ cx: cx + side * 46, r: 16.5, cy: [cy, cy - 13, cy] }}
+                      animate={{ cx: cx + side * R * 0.45, r: R * 0.16, cy: [cy, cy - R * 0.13, cy] }}
                       // every animated attribute must also appear in exit — a
                       // keyframed one left out resolves to undefined mid-exit
                       exit={{ cx, cy, r: 0, transition: { duration: 0.28, ease: "easeIn" } }}
@@ -850,26 +864,26 @@ export default function AgentFigure({
                     key="bangdot"
                     fill={gradUrl}
                     initial={{ cx, cy, r: 0 }}
-                    animate={{ cx, cy: cy + 46, r: 8.5 }}
+                    animate={{ cx, cy: cy + R * 0.45, r: R * 0.083 }}
                     exit={{ cx, cy, r: 0, transition: { duration: 0.25, ease: "easeIn" } }}
                     transition={{ cy: { ...POP, delay: 0.12 }, r: { ...POP, delay: 0.12 } }}
                   />
                 )}
                 {morph === "bars" &&
                   [
-                    { off: -44, h: 34, dl: 0 },
-                    { off: -22, h: 56, dl: 0.12 },
-                    { off: 22, h: 56, dl: 0.24 },
-                    { off: 44, h: 34, dl: 0.36 },
+                    { off: -R * 0.43, h: R * 0.33, dl: 0 },
+                    { off: -R * 0.215, h: R * 0.55, dl: 0.12 },
+                    { off: R * 0.215, h: R * 0.55, dl: 0.24 },
+                    { off: R * 0.43, h: R * 0.33, dl: 0.36 },
                   ].map((b) => (
                     <motion.rect
                       key={`bar${b.off}`}
-                      width={10}
-                      rx={5}
+                      width={R * 0.1}
+                      rx={R * 0.05}
                       fill={gradUrl}
-                      initial={{ x: cx - 5, y: cy - 3, height: 6 }}
-                      animate={{ x: cx - 5 + b.off, height: [12, b.h], y: [cy - 6, cy - b.h / 2] }}
-                      exit={{ x: cx - 5, height: 6, y: cy - 3, transition: { duration: 0.25, ease: "easeIn" } }}
+                      initial={{ x: cx - R * 0.05, y: cy - R * 0.03, height: R * 0.06 }}
+                      animate={{ x: cx - R * 0.05 + b.off, height: [R * 0.12, b.h], y: [cy - R * 0.06, cy - b.h / 2] }}
+                      exit={{ x: cx - R * 0.05, height: R * 0.06, y: cy - R * 0.03, transition: { duration: 0.25, ease: "easeIn" } }}
                       transition={{
                         x: { ...POP, delay: 0.1 },
                         height: { duration: 0.5, repeat: Infinity, repeatType: "mirror", ease: "easeInOut", delay: b.dl },
@@ -889,13 +903,13 @@ export default function AgentFigure({
             a caret blooms as ONE bent line, never as two outlined bars. */}
         <motion.div
           className="absolute left-1/2 top-1/2"
-          style={{ x: eyeLx, y: eyeYL, width: eyeWL, height: eyeHL, rotate: faceTiltL, skewX: skewL, opacity: face, filter: EYE_BLOOM }}
+          style={{ x: eyeLx, y: eyeYL, width: eyeWL, height: eyeHL, rotate: faceTiltL, skewX: skewL, opacity: face, filter: eyeBloom(k) }}
         >
           <EyeGlyphPath g={gL} w={eyeWL} h={eyeHL} />
         </motion.div>
         <motion.div
           className="absolute left-1/2 top-1/2"
-          style={{ x: eyeRx, y: eyeYR, width: eyeWR, height: eyeHR, rotate: faceTiltR, skewX: skewR, opacity: face, filter: EYE_BLOOM }}
+          style={{ x: eyeRx, y: eyeYR, width: eyeWR, height: eyeHR, rotate: faceTiltR, skewX: skewR, opacity: face, filter: eyeBloom(k) }}
         >
           <EyeGlyphPath g={gR} w={eyeWR} h={eyeHR} />
         </motion.div>
@@ -935,10 +949,10 @@ export default function AgentFigure({
         {zeds.map((z) => (
           <motion.span
             key={z.id}
-            className={`absolute font-mono font-medium text-black/40 ${z.big ? "text-[16px]" : "text-[12px]"}`}
-            style={{ left: cx + R * 0.5, top: cy - R * 0.85 }}
+            className="absolute font-mono font-medium text-black/40"
+            style={{ left: cx + R * 0.5, top: cy - R * 0.85, fontSize: (z.big ? 16 : 12) * k }}
             initial={{ opacity: 0, x: 0, y: 0, rotate: 0 }}
-            animate={{ opacity: [0, 0.7, 0], x: 30, y: -58, rotate: 16 }}
+            animate={{ opacity: [0, 0.7, 0], x: 30 * k, y: -58 * k, rotate: 16 }}
             transition={{ duration: 2.6, ease: "easeOut" }}
             onAnimationComplete={() => setZeds((s) => s.filter((q) => q.id !== z.id))}
           >
@@ -954,8 +968,8 @@ export default function AgentFigure({
 
 /** One bloom per EYE, applied on the container — the shadow follows the union
     of the strokes, so multi-stroke glyphs glow as a single glyph. */
-const EYE_BLOOM =
-  "drop-shadow(0 0 6px rgba(255,255,255,0.7)) drop-shadow(0 0 14px rgba(255,255,255,0.4))";
+const eyeBloom = (k: number) =>
+  `drop-shadow(0 0 ${(6 * k).toFixed(2)}px rgba(255,255,255,0.7)) drop-shadow(0 0 ${(14 * k).toFixed(2)}px rgba(255,255,255,0.4))`;
 
 /** The eye itself: a single round-capped, round-joined polyline. Because it
     is ONE shape, a blink just flattens it — there are no separate pieces to
